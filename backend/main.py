@@ -50,7 +50,7 @@ def ask_openai(prompt: str) -> str:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "あなたは優秀な料理人です。料理に関する質問に正確に答えてください。"},
+                {"role": "system", "content": "あなたは占い師です。占いに関する質問に正確に答えてください。"},
                 {"role": "user", "content": prompt}
             ]
         )
