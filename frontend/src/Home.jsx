@@ -7,12 +7,19 @@ export default function Home({ auth }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [error,setError] = useState('');
+  const [nickname, setNickname] = useState('');
 
   const handleQuestion = async () => {
     if (!question.trim()) {
       setError('質問を入力してください。');
       return;
     }
+
+    if (!nickname.trim()) {
+      setError('名前を入力してください。');
+      return;
+    }
+
     setError('');
     setLoading(true);
 
@@ -52,6 +59,17 @@ export default function Home({ auth }) {
       <p style={styles.welcome}>
         {auth?.username ? `ようこそ、${auth.username} さん` : 'ユーザー情報がありません'}
       </p>
+
+      {/* 🔽 名前の入力欄 */}
+      <input
+        style={styles.input}
+        type="text"
+        placeholder="あなたの名前（ニックネーム）を入力"
+        value={nickname}
+        onChange={(e) => setNickname(e.target.value)}
+      />
+
+
       <button style={styles.logout} onClick={handleLogout}>ログアウト</button>
 
       <textarea
@@ -65,7 +83,14 @@ export default function Home({ auth }) {
         {loading ? '送信中...' : '質問する'}
       </button>
       <div style={styles.responseBox}>
-        <p>{response || '← AIの回答がここに表示されます'}</p>
+        {response ? (
+          <p>
+            <strong>{nickname} さんの質問:</strong> {question}<br />
+            <strong>回答:</strong> {response}
+          </p>
+        ) : (
+          <p>← AIの回答がここに表示されます</p>
+        )}
       </div>
     </div>
   );
