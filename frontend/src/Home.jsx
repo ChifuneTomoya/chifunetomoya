@@ -1,21 +1,30 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Home({ auth }) {
   const [question, setQuestion] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const [error,setError] = useState('');
 
   const handleQuestion = async () => {
+    if (!question.trim()) {
+      setError('質問を入力してください。');
+      return;
+    }
+    setError('');
     setLoading(true);
+
     try {
       const credentials = btoa(`${auth.username}:${auth.password}`);
-      const res = await fetch('http://localhost:8000/question', {
+      const res = await fetch('https://nmnhnzdpkn.ap-northeast-1.awsapprunner.com/question', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${credentials}`,
         },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question })
       });
 
       const data = await res.json();
@@ -31,15 +40,27 @@ export default function Home({ auth }) {
     }
   };
 
+  // 🔴 ログアウト処理
+  const handleLogout = () => {
+    localStorage.removeItem('auth');
+    navigate('/');
+  };
+
   return (
     <div style={styles.container}>
       <h2>AI 質問画面</h2>
+      <p style={styles.welcome}>
+        {auth?.username ? `ようこそ、${auth.username} さん` : 'ユーザー情報がありません'}
+      </p>
+      <button style={styles.logout} onClick={handleLogout}>ログアウト</button>
+
       <textarea
         style={styles.textarea}
         placeholder="質問を入力"
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
       />
+      {error && <p style={{ color: 'red' }}>{error}</p>}
       <button style={styles.button} onClick={handleQuestion} disabled={loading}>
         {loading ? '送信中...' : '質問する'}
       </button>
@@ -60,6 +81,21 @@ const styles = {
     borderRadius: '30px',
     fontFamily: 'sans-serif',
     backgroundColor: '#f0f0ff',
+  },
+  welcome: {
+    fontSize: '16px',
+    marginBottom: '10px',
+    color: '#333',
+  },
+  logout: {
+    marginBottom: '20px',
+    padding: '8px 16px',
+    fontSize: '14px',
+    borderRadius: '10px',
+    backgroundColor: '#f44336',
+    color: 'white',
+    border: 'none',
+    cursor: 'pointer',
   },
   textarea: {
     width: '100%',

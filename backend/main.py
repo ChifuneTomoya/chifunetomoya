@@ -6,6 +6,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import secrets
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # .envからAPIキーを読み込み
 load_dotenv()
@@ -16,29 +18,34 @@ app = FastAPI()
 # CORS設定（Reactとの連携）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://zg8m2euiyd.ap-northeast-1.awsapprunner.com"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 # Basic認証セットアップ
 security = HTTPBasic()
 
 # 仮ユーザー名・パスワード（本番では環境変数で）
-USERNAME = "chifune"
-PASSWORD = "tomoya"
+USERS = {
+    "tomoya": "tomoya",
+    "chifune": "chifune",
+}
 
 # 認証関数
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
-    is_user = secrets.compare_digest(credentials.username, USERNAME)
-    is_pass = secrets.compare_digest(credentials.password, PASSWORD)
+    stored_password = USERS.get(credentials.username)
+    is_user = stored_password is not None
+    is_pass = is_user and secrets.compare_digest(credentials.password, stored_password)
+
     if not (is_user and is_pass):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="認証に失敗しました。",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return credentials.username  # 認証後、名前として返す
+    return credentials.username
 
 # リクエストモデル
 class UserInput(BaseModel):
@@ -48,7 +55,7 @@ class UserInput(BaseModel):
 def ask_openai(prompt: str) -> str:
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": "あなたは占い師です。占いに関する質問に正確に答えてください。"},
                 {"role": "user", "content": prompt}

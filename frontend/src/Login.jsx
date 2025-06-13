@@ -5,6 +5,7 @@ export default function Login({ setAuth }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
@@ -13,23 +14,35 @@ export default function Login({ setAuth }) {
       return;
     }
 
-    // ダミー認証チェック（実際のAPIにはHome側で送信）
-    const testAuth = btoa(`${username}:${password}`);
-    const res = await fetch('http://localhost:8000/question', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${testAuth}`,
-      },
-      body: JSON.stringify({ question: "こんにちは" }),
-    });
+    setLoading(true);
+    setError('');
 
-    if (res.ok) {
-      setAuth({ username, password });
-      navigate('/home');
-    } else {
-      const data = await res.json();
-      setError(data.detail || 'ログイン失敗');
+    try {
+      const testAuth = btoa(`${username}:${password}`);
+      const res = await fetch('https://nmnhnzdpkn.ap-northeast-1.awsapprunner.com/question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${testAuth}`,
+        },
+        body: JSON.stringify({ question: "こんにちは" }),
+      });
+
+      if (res.ok) {
+        setAuth({ username, password });
+        navigate('/home');
+      } else {
+        const contentType = res.headers.get('Content-Type');
+        const data = contentType && contentType.includes('application/json')
+          ? await res.json()
+          : { detail: 'ログインに失敗しました' };
+        setError(data.detail || 'ログインに失敗しました');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('ネットワークエラー');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -50,7 +63,9 @@ export default function Login({ setAuth }) {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <button style={styles.button} onClick={handleLogin}>ログイン</button>
+      <button style={styles.button} onClick={handleLogin} disabled={loading}>
+        {loading ? '送信中...' : 'ログイン'}
+      </button>
       {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
