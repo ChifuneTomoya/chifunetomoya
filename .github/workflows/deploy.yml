@@ -8,29 +8,31 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        include:
-          - service: backend
-            ecr_repository: backend
-          - service: frontend
-            ecr_repository: frontend
+        service: [backend, frontend]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, tag and push ${{ matrix.service }}
+      - name: Build, tag and push ${{ matrix.service }} image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: latest
-          ECR_REPOSITORY: ${{ matrix.ecr_repository }}
+          ECR_REPOSITORY: ${{ matrix.service }}
         run: |
-          echo "Building image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "Building $ECR_REPOSITORY image..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./${{ matrix.service }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
