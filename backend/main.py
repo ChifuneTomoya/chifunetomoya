@@ -67,5 +67,6 @@ def ask_openai(nickname: str, question: str) -> str:
 
 @app.post("/question")
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
+    print(f"DEBUG: nickname={data.nickname}, question={data.question}")
     answer = ask_openai(data.nickname, data.question)
     return {"nickname": data.nickname, "response": answer}
