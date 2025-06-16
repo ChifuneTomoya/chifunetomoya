@@ -40,19 +40,13 @@ class UserInput(BaseModel):
     question: str
     nickname: str
 
-def ask_openai(prompt: str) -> str:
+def ask_openai(nickname: str, question: str) -> str:
     try:
         response = client.chat.completions.create(
             model="gpt-4.1",
             messages=[
-                {
-                    "role": "system",
-                    "content": "あなたは優秀な占い師です。名前の指示がある場合は、その通りに呼びかけて回答してください。"
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
+                {"role": "system", "content": f"あなたはプロの占い師です。ユーザーの本名やユーザー名（例：chifune, tomoya）ではなく、必ず入力されたニックネーム「{nickname}」のみを使用して返答してください。"},
+                {"role": "user", "content": f"{nickname}さんからの質問: {question}"}
             ]
         )
         return response.choices[0].message.content
@@ -62,14 +56,6 @@ def ask_openai(prompt: str) -> str:
 
 @app.post("/question")
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
-    prompt = (
-        f"{data.nickname}さんが以下の質問をしています：\n"
-        f"{data.question}\n\n"
-        f"回答では、必ず「{data.nickname}さん、」という名前で呼びかけてください。"
-        "それ以外の名前（ユーザー名など）は絶対に使わないでください。"
-    )
-    answer = ask_openai(prompt)
-    return {
-        "nickname": data.nickname,
-        "response": answer
-    }
+    answer = ask_openai(data.nickname, data.question)
+    return {"nickname": data.nickname, "response": answer}
+
