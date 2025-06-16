@@ -9,6 +9,10 @@ export default function Home({ auth }) {
   const [error, setError] = useState('');
   const [nickname, setNickname] = useState('');
 
+  // 送信時のニックネームと質問を保存するstate
+  const [submittedNickname, setSubmittedNickname] = useState('');
+  const [submittedQuestion, setSubmittedQuestion] = useState('');
+
   const handleQuestion = async () => {
     if (!question.trim()) {
       setError('質問を入力してください。');
@@ -23,6 +27,10 @@ export default function Home({ auth }) {
     setError('');
     setLoading(true);
 
+    // 送信時の値を保存
+    setSubmittedNickname(nickname);
+    setSubmittedQuestion(question);
+
     try {
       const credentials = btoa(`${auth.username}:${auth.password}`);
       const res = await fetch('https://nmnhnzdpkn.ap-northeast-1.awsapprunner.com/question', {
@@ -31,7 +39,7 @@ export default function Home({ auth }) {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${credentials}`,
         },
-        body: JSON.stringify({ question, nickname })  // ← nicknameも送る
+        body: JSON.stringify({ question, nickname })
       });
 
       const data = await res.json();
@@ -84,7 +92,7 @@ export default function Home({ auth }) {
       <div style={styles.responseBox}>
         {response ? (
           <p>
-            <strong>{nickname} さんの質問:</strong> {question}<br />
+            <strong>{submittedNickname} さんの質問:</strong> {submittedQuestion}<br />
             <strong>回答:</strong> {response}
           </p>
         ) : (
