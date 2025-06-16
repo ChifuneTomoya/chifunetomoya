@@ -56,7 +56,13 @@ def ask_openai(prompt: str) -> str:
         response = client.chat.completions.create(
             model="gpt-4.1",
             messages=[
-                {"role": "system", "content": "あなたは占い師です。占いに関する質問に正確に答えてください。ただし、ユーザーの名前を呼ばないでください。"},
+                {
+                    "role": "system",
+                    "content": (
+                        "あなたはプロの占い師です。ユーザーの名前を絶対に使わず、"
+                        "丁寧語で短く簡潔に占いの回答だけをしてください。"
+                    )
+                },
                 {"role": "user", "content": prompt}
             ]
         )
@@ -68,7 +74,7 @@ def ask_openai(prompt: str) -> str:
 # エンドポイント：質問処理
 @app.post("/question")
 def handle_question(data: UserInput, _: str = Depends(authenticate)):
-    prompt = f"{data.question}"
+    prompt = f"{data.question}（名前を使わずに答えてください）"
     answer = ask_openai(prompt)
     return {
         "nickname": data.nickname,
