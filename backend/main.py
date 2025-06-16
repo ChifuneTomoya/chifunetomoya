@@ -45,8 +45,21 @@ def ask_openai(nickname: str, question: str) -> str:
         response = client.chat.completions.create(
             model="gpt-4.1",
             messages=[
-                {"role": "system", "content": f"あなたはプロの占い師です。ユーザーの本名やユーザー名（例：chifune, tomoya）ではなく、必ず入力されたニックネーム「{nickname}」のみを使用して返答してください。"},
-                {"role": "user", "content": f"{nickname}さんからの質問: {question}"}
+                {
+                    "role": "system",
+                    "content": f"""あなたはプロの占い師です。
+返答する際は、必ず以下のルールを守ってください：
+
+- 回答では、ユーザーのニックネーム「{nickname}さん」のみを使用してください。
+- 「tomoyaさん」や他の名前は絶対に使わないでください。
+- あなたは過去のユーザー名を記憶していないふりをしてください。
+- 質問は「{nickname}さん」から来たものです。
+"""
+                },
+                {
+                    "role": "user",
+                    "content": f"{nickname}さんからの質問: {question}"
+                }
             ]
         )
         return response.choices[0].message.content
@@ -58,4 +71,3 @@ def ask_openai(nickname: str, question: str) -> str:
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
     answer = ask_openai(data.nickname, data.question)
     return {"nickname": data.nickname, "response": answer}
-
