@@ -1,4 +1,4 @@
-name: Build, Push to ECR and Deploy to App Runner
+name: Deploy backend and frontend to App Runner
 
 on:
   push:
@@ -8,10 +8,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [backend, frontend]
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -27,34 +23,46 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build and push ${{ matrix.service }} image
+      # ===== Backend =====
+      - name: Build and push backend image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: latest
-          ECR_REPOSITORY: ${{ matrix.service }}
         run: |
-          echo "Building Docker image for $ECR_REPOSITORY"
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./${{ matrix.service }}
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker build -t $ECR_REGISTRY/backend:$IMAGE_TAG ./backend
+          docker push $ECR_REGISTRY/backend:$IMAGE_TAG
 
-      - name: Deploy ${{ matrix.service }} to App Runner
+      - name: Deploy backend to App Runner
         env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: latest
+          SERVICE_ARN: ${{ secrets.SERVICE_ARN_BACKEND }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: latest
-          ECR_REPOSITORY: ${{ matrix.service }}
-          SERVICE_ARN_BACKEND: ${{ secrets.SERVICE_ARN_BACKEND }}
-          SERVICE_ARN_FRONTEND: ${{ secrets.SERVICE_ARN_FRONTEND }}
         run: |
-          if [ "${{ matrix.service }}" = "backend" ]; then
-            SERVICE_ARN=$SERVICE_ARN_BACKEND
-          else
-            SERVICE_ARN=$SERVICE_ARN_FRONTEND
-          fi
-
-          echo "Deploying $ECR_REPOSITORY to App Runner service $SERVICE_ARN"
-
+          echo "Deploying backend to App Runner"
           aws apprunner update-service \
             --service-arn $SERVICE_ARN \
-            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG\",\"ImageRepositoryType\":\"ECR\"}}" \
+            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$ECR_REGISTRY/backend:$IMAGE_TAG\",\"ImageRepositoryType\":\"ECR\"}}" \
+            --region $AWS_REGION
+
+      # ===== Frontend =====
+      - name: Build and push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REGISTRY/frontend:$IMAGE_TAG ./frontend
+          docker push $ECR_REGISTRY/frontend:$IMAGE_TAG
+
+      - name: Deploy frontend to App Runner
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: latest
+          SERVICE_ARN: ${{ secrets.SERVICE_ARN_FRONTEND }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "Deploying frontend to App Runner"
+          aws apprunner update-service \
+            --service-arn $SERVICE_ARN \
+            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$ECR_REGISTRY/frontend:$IMAGE_TAG\",\"ImageRepositoryType\":\"ECR\"}}" \
             --region $AWS_REGION
