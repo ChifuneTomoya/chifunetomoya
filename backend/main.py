@@ -63,8 +63,10 @@ def ask_openai(prompt: str) -> str:
 @app.post("/question")
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
     prompt = (
-        f"{data.nickname}さんが以下の質問をしています：{data.question}\n"
-        f"返答には必ず最初に「{data.nickname}さん、」と呼びかけてください。"
+        f"{data.nickname}さんが以下の質問をしています：\n"
+        f"{data.question}\n\n"
+        f"回答では、必ず「{data.nickname}さん、」という名前で呼びかけてください。"
+        "それ以外の名前（ユーザー名など）は絶対に使わないでください。"
     )
     answer = ask_openai(prompt)
     return {
