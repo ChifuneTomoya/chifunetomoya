@@ -6,7 +6,7 @@ export default function Home({ auth }) {
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const [error,setError] = useState('');
+  const [error, setError] = useState('');
   const [nickname, setNickname] = useState('');
 
   const handleQuestion = async () => {
@@ -61,16 +61,16 @@ export default function Home({ auth }) {
       </p>
 
       {/* 🔽 名前の入力欄 */}
-<div style={styles.inputGroup}>
-  <label style={styles.label}>あなたの名前（ニックネーム）</label>
-  <input
-    style={styles.input}
-    type="text"
-    placeholder="例: tomoya"
-    value={nickname}
-    onChange={(e) => setNickname(e.target.value)}
-  />
-</div>
+      <div style={styles.inputGroup}>
+        <label style={styles.label}>あなたの名前（ニックネーム）</label>
+        <input
+          style={styles.input}
+          type="text"
+          placeholder="例: tomoya"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+        />
+      </div>
 
       <button style={styles.logout} onClick={handleLogout}>ログアウト</button>
 
@@ -84,11 +84,12 @@ export default function Home({ auth }) {
       <button style={styles.button} onClick={handleQuestion} disabled={loading}>
         {loading ? '送信中...' : '質問する'}
       </button>
+
       <div style={styles.responseBox}>
         {response ? (
           <p>
-            <strong>{nickname} さんの質問:</strong> {question}<br />
-            <strong>回答:</strong> {response}
+            <strong>{nickname} さんの質問:</strong>「{question}」<br />
+            <strong>AIの回答:</strong>「{response}」
           </p>
         ) : (
           <p>← AIの回答がここに表示されます</p>
@@ -113,6 +114,22 @@ const styles = {
     fontSize: '16px',
     marginBottom: '10px',
     color: '#333',
+  },
+  inputGroup: {
+    marginBottom: '20px',
+  },
+  label: {
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  input: {
+    width: '100%',
+    padding: '10px',
+    fontSize: '16px',
+    borderRadius: '10px',
+    border: '2px solid #333',
   },
   logout: {
     marginBottom: '20px',
@@ -149,22 +166,4 @@ const styles = {
     borderRadius: '10px',
     backgroundColor: '#fff',
   },
-
-  inputGroup: {
-    marginBottom: '20px',
-  },
-  label: {
-    display: 'block',
-    marginBottom: '8px',
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  input: {
-    width: '100%',
-    padding: '10px',
-    fontSize: '16px',
-    borderRadius: '10px',
-    border: '2px solid #333',
-  },
-  // textareaやbuttonの style はそのままでOK
 };

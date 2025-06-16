@@ -50,6 +50,7 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
 # リクエストモデル
 class UserInput(BaseModel):
     question: str
+    nickname: str
 
 # OpenAIへ質問送信
 def ask_openai(prompt: str) -> str:
@@ -69,6 +70,6 @@ def ask_openai(prompt: str) -> str:
 # 質問API（認証付き）
 @app.post("/question")
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
-    prompt = f"{data.question}"
+    prompt = f"{data.nickname}さんからの質問: {data.question}"
     answer = ask_openai(prompt)
     return {"response": answer}
