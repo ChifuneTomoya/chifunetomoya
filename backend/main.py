@@ -25,13 +25,13 @@ app.add_middleware(
 # Basic認証セットアップ
 security = HTTPBasic()
 
-# 仮ユーザー名・パスワード（本番では環境変数で）
+# ユーザー名とパスワード（環境変数で管理するのが理想）
 USERS = {
     "tomoya": "tomoya",
     "chifune": "chifune",
 }
 
-# 認証関数
+# 認証
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
     stored_password = USERS.get(credentials.username)
     is_user = stored_password is not None
@@ -43,14 +43,14 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
             detail="認証に失敗しました。",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return credentials.username
+    return credentials.username  # 認証に成功した場合はユーザー名を返す
 
-# リクエストモデルにnicknameを追加
+# リクエストスキーマ
 class UserInput(BaseModel):
     question: str
     nickname: str
 
-# OpenAIへ質問送信
+# AI回答生成
 def ask_openai(prompt: str) -> str:
     try:
         response = client.chat.completions.create(
@@ -65,10 +65,12 @@ def ask_openai(prompt: str) -> str:
         print(f"OpenAI API error: {e}")
         return "申し訳ありません、AIの応答に失敗しました。"
 
-# 質問API（認証付き）
+# エンドポイント：質問処理
 @app.post("/question")
-def handle_question(data: UserInput, username: str = Depends(authenticate)):
+def handle_question(data: UserInput, _: str = Depends(authenticate)):
     prompt = f"{data.nickname}さんからの質問: {data.question}"
     answer = ask_openai(prompt)
-    # nicknameも返す
-    return {"nickname": data.nickname, "response": answer}
+    return {
+        "nickname": data.nickname,
+        "response": answer
+    }

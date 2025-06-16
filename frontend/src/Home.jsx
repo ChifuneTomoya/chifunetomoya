@@ -31,7 +31,7 @@ export default function Home({ auth }) {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${credentials}`,
         },
-        body: JSON.stringify({ question,nickname })
+        body: JSON.stringify({ question, nickname })  // ← nicknameも送る
       });
 
       const data = await res.json();
@@ -47,7 +47,6 @@ export default function Home({ auth }) {
     }
   };
 
-  // 🔴 ログアウト処理
   const handleLogout = () => {
     localStorage.removeItem('auth');
     navigate('/');
@@ -56,11 +55,8 @@ export default function Home({ auth }) {
   return (
     <div style={styles.container}>
       <h2>AI 質問画面</h2>
-      <p style={styles.welcome}>
-        {auth?.username ? `ようこそ、${auth.username} さん` : 'ユーザー情報がありません'}
-      </p>
 
-      {/* 🔽 名前の入力欄 */}
+      {/* ニックネーム入力 */}
       <div style={styles.inputGroup}>
         <label style={styles.label}>あなたの名前（ニックネーム）</label>
         <input
@@ -88,8 +84,8 @@ export default function Home({ auth }) {
       <div style={styles.responseBox}>
         {response ? (
           <p>
-            <strong>{nickname} さんの質問:</strong>「{question}」<br />
-            <strong>AIの回答:</strong>「{response}」
+            <strong>{nickname} さんの質問:</strong> {question}<br />
+            <strong>回答:</strong> {response}
           </p>
         ) : (
           <p>← AIの回答がここに表示されます</p>
@@ -109,11 +105,6 @@ const styles = {
     borderRadius: '30px',
     fontFamily: 'sans-serif',
     backgroundColor: '#f0f0ff',
-  },
-  welcome: {
-    fontSize: '16px',
-    marginBottom: '10px',
-    color: '#333',
   },
   inputGroup: {
     marginBottom: '20px',
