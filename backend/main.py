@@ -68,7 +68,7 @@ def ask_openai(prompt: str) -> str:
 # エンドポイント：質問処理
 @app.post("/question")
 def handle_question(data: UserInput, _: str = Depends(authenticate)):
-    prompt = f"{data.nickname}さんからの質問: {data.question}"
+    prompt = f"{data.question}"
     answer = ask_openai(prompt)
     return {
         "nickname": data.nickname,
