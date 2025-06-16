@@ -62,7 +62,7 @@ export default function Home({ auth }) {
         <input
           style={styles.input}
           type="text"
-          placeholder="例: tomoya"
+          placeholder="例: 智哉"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
         />
