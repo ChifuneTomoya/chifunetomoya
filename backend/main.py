@@ -7,13 +7,11 @@ from dotenv import load_dotenv
 import os
 import secrets
 
-# .envからAPIキーを読み込み
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 
-# CORS設定
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://zg8m2euiyd.ap-northeast-1.awsapprunner.com"],
@@ -22,7 +20,6 @@ app.add_middleware(
     allow_credentials=True,
 )
 
-# Basic認証
 security = HTTPBasic()
 USERS = {
     "tomoya": "tomoya",
@@ -50,7 +47,7 @@ def ask_openai(prompt: str) -> str:
             messages=[
                 {
                     "role": "system",
-                    "content": "あなたはプロの占い師です。質問に対して、名前を一切使わずに占いの回答だけをしてください。"
+                    "content": "あなたは優秀な占い師です。名前の指示がある場合は、その通りに呼びかけて回答してください。"
                 },
                 {
                     "role": "user",
@@ -65,8 +62,10 @@ def ask_openai(prompt: str) -> str:
 
 @app.post("/question")
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
-    # nicknameを prompt に含めないことでAIが名前を使わないようにする
-    prompt = data.question
+    prompt = (
+        f"{data.nickname}さんが以下の質問をしています：{data.question}\n"
+        f"返答には必ず最初に「{data.nickname}さん、」と呼びかけてください。"
+    )
     answer = ask_openai(prompt)
     return {
         "nickname": data.nickname,
