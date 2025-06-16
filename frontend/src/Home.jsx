@@ -5,31 +5,29 @@ export default function Home({ auth }) {
   const [question, setQuestion] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const [error, setError] = useState('');
   const [nickname, setNickname] = useState('');
+  const [category, setCategory] = useState('');  // ← カテゴリの状態追加
+  const navigate = useNavigate();
 
-  // 送信時のニックネームと質問を保存するstate
-  const [submittedNickname, setSubmittedNickname] = useState('');
-  const [submittedQuestion, setSubmittedQuestion] = useState('');
+  const categories = ['恋愛', '仕事', '健康', '趣味', 'その他'];
 
   const handleQuestion = async () => {
     if (!question.trim()) {
       setError('質問を入力してください。');
       return;
     }
-
     if (!nickname.trim()) {
       setError('名前を入力してください。');
+      return;
+    }
+    if (!category) {
+      setError('カテゴリを選択してください。');
       return;
     }
 
     setError('');
     setLoading(true);
-
-    // 送信時の値を保存
-    setSubmittedNickname(nickname);
-    setSubmittedQuestion(question);
 
     try {
       const credentials = btoa(`${auth.username}:${auth.password}`);
@@ -39,7 +37,7 @@ export default function Home({ auth }) {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${credentials}`,
         },
-        body: JSON.stringify({ question, nickname })
+        body: JSON.stringify({ question, nickname, category }),
       });
 
       const data = await res.json();
@@ -64,7 +62,6 @@ export default function Home({ auth }) {
     <div style={styles.container}>
       <h2>AI 質問画面</h2>
 
-      {/* ニックネーム入力 */}
       <div style={styles.inputGroup}>
         <label style={styles.label}>あなたの名前（ニックネーム）</label>
         <input
@@ -74,6 +71,20 @@ export default function Home({ auth }) {
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
         />
+      </div>
+
+      <div style={styles.inputGroup}>
+        <label style={styles.label}>質問カテゴリ</label>
+        <select
+          style={styles.input}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          <option value="">カテゴリを選択してください</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
       </div>
 
       <button style={styles.logout} onClick={handleLogout}>ログアウト</button>
@@ -92,7 +103,7 @@ export default function Home({ auth }) {
       <div style={styles.responseBox}>
         {response ? (
           <p>
-            <strong>{submittedNickname} さんの質問:</strong> {submittedQuestion}<br />
+            <strong>{nickname} さんの質問（{category}）:</strong> {question}<br />
             <strong>回答:</strong> {response}
           </p>
         ) : (

@@ -39,15 +39,16 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
 class UserInput(BaseModel):
     question: str
     nickname: str
+    category: str  # 追加
 
-def ask_openai(nickname: str, question: str) -> str:
+def ask_openai(nickname: str, question: str, category: str) -> str:
     try:
         system_prompt = (
             f"あなたは優秀な占い師です。\n"
+            f"質問のカテゴリは「{category}」です。\n"
             f"返答では必ず依頼者のニックネーム（{nickname}さん）だけを使用してください。\n"
-            f"過去の名前（tomoyaさん、chifuneさんなど）を絶対に使ってはいけません。\n"
-            f"「こんにちは」「こんばんは」などの挨拶も禁止です。\n"
-            f"名前を本文に含める必要はありません。"
+            f"過去の名前は絶対に使わず、挨拶も禁止です。\n"
+            f"関西弁で、やさしく、丁寧に話してください。\n"
         )
 
         response = client.chat.completions.create(
@@ -62,10 +63,8 @@ def ask_openai(nickname: str, question: str) -> str:
         print(f"OpenAI API error: {e}")
         return "申し訳ありません、AIの応答に失敗しました。"
 
-
-
 @app.post("/question")
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
-    print(f"DEBUG: nickname={data.nickname}, question={data.question}")
-    answer = ask_openai(data.nickname, data.question)
+    print(f"DEBUG: nickname={data.nickname}, question={data.question}, category={data.category}")
+    answer = ask_openai(data.nickname, data.question, data.category)
     return {"nickname": data.nickname, "response": answer}
