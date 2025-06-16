@@ -61,14 +61,16 @@ export default function Home({ auth }) {
       </p>
 
       {/* 🔽 名前の入力欄 */}
-      <input
-        style={styles.input}
-        type="text"
-        placeholder="あなたの名前（ニックネーム）を入力"
-        value={nickname}
-        onChange={(e) => setNickname(e.target.value)}
-      />
-
+<div style={styles.inputGroup}>
+  <label style={styles.label}>あなたの名前（ニックネーム）</label>
+  <input
+    style={styles.input}
+    type="text"
+    placeholder="例: たろう"
+    value={nickname}
+    onChange={(e) => setNickname(e.target.value)}
+  />
+</div>
 
       <button style={styles.logout} onClick={handleLogout}>ログアウト</button>
 
@@ -147,4 +149,22 @@ const styles = {
     borderRadius: '10px',
     backgroundColor: '#fff',
   },
+
+  inputGroup: {
+    marginBottom: '20px',
+  },
+  label: {
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  input: {
+    width: '100%',
+    padding: '10px',
+    fontSize: '16px',
+    borderRadius: '10px',
+    border: '2px solid #333',
+  },
+  // textareaやbuttonの style はそのままでOK
 };
