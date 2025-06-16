@@ -13,7 +13,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 
-# CORS設定（Reactとの連携）
+# CORS設定
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://zg8m2euiyd.ap-northeast-1.awsapprunner.com"],
@@ -22,35 +22,27 @@ app.add_middleware(
     allow_credentials=True,
 )
 
-# Basic認証セットアップ
+# Basic認証
 security = HTTPBasic()
-
-# ユーザー名とパスワード（環境変数で管理するのが理想）
 USERS = {
     "tomoya": "tomoya",
     "chifune": "chifune",
 }
 
-# 認証
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
     stored_password = USERS.get(credentials.username)
-    is_user = stored_password is not None
-    is_pass = is_user and secrets.compare_digest(credentials.password, stored_password)
-
-    if not (is_user and is_pass):
+    if not stored_password or not secrets.compare_digest(credentials.password, stored_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="認証に失敗しました。",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return credentials.username  # 認証に成功した場合はユーザー名を返す
+    return credentials.username
 
-# リクエストスキーマ
 class UserInput(BaseModel):
     question: str
     nickname: str
 
-# AI回答生成
 def ask_openai(prompt: str) -> str:
     try:
         response = client.chat.completions.create(
@@ -58,12 +50,12 @@ def ask_openai(prompt: str) -> str:
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "あなたはプロの占い師です。ユーザーの名前を絶対に使わず、"
-                        "丁寧語で短く簡潔に占いの回答だけをしてください。"
-                    )
+                    "content": "あなたはプロの占い師です。質問に対して、名前を一切使わずに占いの回答だけをしてください。"
                 },
-                {"role": "user", "content": prompt}
+                {
+                    "role": "user",
+                    "content": prompt
+                }
             ]
         )
         return response.choices[0].message.content
@@ -71,10 +63,10 @@ def ask_openai(prompt: str) -> str:
         print(f"OpenAI API error: {e}")
         return "申し訳ありません、AIの応答に失敗しました。"
 
-# エンドポイント：質問処理
 @app.post("/question")
-def handle_question(data: UserInput, _: str = Depends(authenticate)):
-    prompt = f"{data.question}（名前を使わずに答えてください）"
+def handle_question(data: UserInput, username: str = Depends(authenticate)):
+    # nicknameを prompt に含めないことでAIが名前を使わないようにする
+    prompt = data.question
     answer = ask_openai(prompt)
     return {
         "nickname": data.nickname,
