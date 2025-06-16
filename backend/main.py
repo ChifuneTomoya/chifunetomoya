@@ -48,7 +48,7 @@ def ask_openai(nickname: str, question: str) -> str:
             f"過去のどんな名前（例：tomoyaさん、chifuneさん）も絶対に使ってはいけません。\n"
             f"また、「こんにちは」「こんばんは」などの挨拶文は含めないでください。\n"
             f"名前を間違えたり、省略したり、別の名前を使うことは絶対にしないでください。"
-            f"関西弁で。"
+            f"関西弁で話して。"
         )
 
         response = client.chat.completions.create(
