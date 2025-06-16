@@ -56,7 +56,7 @@ def ask_openai(prompt: str) -> str:
         response = client.chat.completions.create(
             model="gpt-4.1",
             messages=[
-                {"role": "system", "content": "あなたは占い師です。占いに関する質問に正確に答えてください。"},
+                {"role": "system", "content": "あなたは占い師です。占いに関する質問に正確に答えてください。ただし、ユーザーの名前を呼ばないでください。"},
                 {"role": "user", "content": prompt}
             ]
         )
