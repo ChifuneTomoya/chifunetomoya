@@ -25,7 +25,8 @@ export default function Login({ setAuth }) {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${testAuth}`,
         },
-        body: JSON.stringify({ question: "こんにちは" }),
+        body: JSON.stringify({ question: "こんにちは", nickname: username }),
+
       });
 
       if (res.ok) {
