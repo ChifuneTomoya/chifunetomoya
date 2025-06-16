@@ -43,19 +43,19 @@ class UserInput(BaseModel):
 def ask_openai(nickname: str, question: str) -> str:
     try:
         system_prompt = (
-            f"あなたは優秀な占い師です。\n"
-            f"返答では、必ず質問者の名前「{nickname}さん」だけを使ってください。\n"
-            f"過去のどんな名前（例：tomoyaさん、chifuneさん）も絶対に使ってはいけません。\n"
-            f"また、「こんにちは」「こんばんは」などの挨拶文は含めないでください。\n"
-            f"名前を間違えたり、省略したり、別の名前を使うことは絶対にしないでください。"
-            f"関西弁で話して。"
+            "あなたは優秀な占い師です。\n"
+            "返答では必ず依頼者のニックネーム（{nickname}）だけを使用してください。\n"
+            "過去の名前（tomoyaさん、chifuneさんなど）を絶対に使ってはいけません。\n"
+            "「こんにちは」「こんばんは」などの挨拶も禁止です。\n"
+            "関西弁で、やさしく、丁寧に話してください。\n"
+            "名前を本文に含める必要はありません。"
         )
 
         response = client.chat.completions.create(
             model="gpt-4.1",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"{nickname}さんからの質問: {question}"}
+                {"role": "user", "content": f"{question}"}
             ]
         )
         return response.choices[0].message.content
