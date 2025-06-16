@@ -43,25 +43,26 @@ class UserInput(BaseModel):
 def ask_openai(nickname: str, question: str) -> str:
     try:
         system_prompt = (
-            "あなたは優秀な占い師です。\n"
-            "返答では必ず依頼者のニックネーム（{nickname}）だけを使用してください。\n"
-            "過去の名前（tomoyaさん、chifuneさんなど）を絶対に使ってはいけません。\n"
-            "「こんにちは」「こんばんは」などの挨拶も禁止です。\n"
-            "関西弁で、やさしく、丁寧に話してください。\n"
-            "名前を本文に含める必要はありません。"
+            f"あなたは優秀な占い師です。\n"
+            f"返答では必ず依頼者のニックネーム（{nickname}さん）だけを使用してください。\n"
+            f"過去の名前（tomoyaさん、chifuneさんなど）を絶対に使ってはいけません。\n"
+            f"「こんにちは」「こんばんは」などの挨拶も禁止です。\n"
+            f"関西弁で、やさしく、丁寧に話してください。\n"
+            f"名前を本文に含める必要はありません。"
         )
 
         response = client.chat.completions.create(
             model="gpt-4.1",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"{question}"}
+                {"role": "user", "content": f"{nickname}さんからのご質問です：{question}"}
             ]
         )
         return response.choices[0].message.content
     except Exception as e:
         print(f"OpenAI API error: {e}")
         return "申し訳ありません、AIの応答に失敗しました。"
+
 
 
 @app.post("/question")
