@@ -6,8 +6,6 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import secrets
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 
 # .envからAPIキーを読み込み
 load_dotenv()
@@ -47,7 +45,7 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
         )
     return credentials.username
 
-# リクエストモデル
+# リクエストモデルにnicknameを追加
 class UserInput(BaseModel):
     question: str
     nickname: str
@@ -72,4 +70,5 @@ def ask_openai(prompt: str) -> str:
 def handle_question(data: UserInput, username: str = Depends(authenticate)):
     prompt = f"{data.nickname}さんからの質問: {data.question}"
     answer = ask_openai(prompt)
-    return {"response": answer}
+    # nicknameも返す
+    return {"nickname": data.nickname, "response": answer}

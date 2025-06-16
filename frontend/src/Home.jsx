@@ -31,7 +31,7 @@ export default function Home({ auth }) {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${credentials}`,
         },
-        body: JSON.stringify({ question })
+        body: JSON.stringify({ question,nickname })
       });
 
       const data = await res.json();
