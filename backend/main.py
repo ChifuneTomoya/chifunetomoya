@@ -71,6 +71,5 @@ async def ask_openai(nickname: str, question: str, category: str) -> str:
 # 質問受付エンドポイント
 @app.post("/question")
 async def handle_question(data: UserInput, username: str = Depends(authenticate)):
-    print("受信データ:", data.dict())  # デバッグ用
     answer = await ask_openai(data.nickname, data.question, data.category)
     return {"nickname": data.nickname, "response": answer}

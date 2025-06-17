@@ -9,6 +9,10 @@ export default function Home({ auth }) {
   const [nickname, setNickname] = useState('');
   const [category, setCategory] = useState('');  // ← カテゴリの状態追加
   const navigate = useNavigate();
+  const [submittedNickname, setSubmittedNickname] = useState('');
+  const [submittedQuestion, setSubmittedQuestion] = useState('');
+  const [submittedCategory, setSubmittedCategory] = useState('');
+
 
   const categories = ['恋愛', '仕事', '健康', '趣味', 'その他'];
 
@@ -28,6 +32,10 @@ export default function Home({ auth }) {
 
     setError('');
     setLoading(true);
+
+    setSubmittedNickname(nickname);
+    setSubmittedQuestion(question);
+    setSubmittedCategory(category);
 
     try {
       const credentials = btoa(`${auth.username}:${auth.password}`);
@@ -103,7 +111,7 @@ export default function Home({ auth }) {
       <div style={styles.responseBox}>
         {response ? (
           <p>
-            <strong>{nickname} さんの質問（{category}）:</strong> {question}<br />
+            <strong>{submittedNickname} さんの質問（{submittedCategory}）:</strong> {submittedQuestion}<br />
             <strong>回答:</strong> {response}
           </p>
         ) : (
