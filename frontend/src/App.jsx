@@ -5,7 +5,7 @@ import Home from './Home';
 
 export default function App() {
   const [auth, setAuth] = useState(null);
-  const [loading, setLoading] = useState(true); // ← 追加
+  const [loading, setLoading] = useState(true);
 
   // 初回読み込み時に localStorage から認証情報を復元
   useEffect(() => {
@@ -13,8 +13,8 @@ export default function App() {
     if (savedAuth) {
       setAuth(JSON.parse(savedAuth));
     }
-    // 強制的に1秒遅延
-  setTimeout(() => setLoading(false), 1000);
+    // 読み込み中アニメーション用に1秒だけ遅延
+    setTimeout(() => setLoading(false), 1000);
   }, []);
 
   // ログイン成功時に localStorage に保存
@@ -24,7 +24,12 @@ export default function App() {
   }
 
   if (loading) {
-    return <p>読み込み中...</p>; // ← 一時的にローディング表示
+    return (
+      <div style={styles.loading}>
+        <h2>資格学習アプリ</h2>
+        <p>読み込み中...</p>
+      </div>
+    );
   }
 
   return (
@@ -39,3 +44,11 @@ export default function App() {
     </Router>
   );
 }
+
+const styles = {
+  loading: {
+    textAlign: 'center',
+    marginTop: '100px',
+    fontFamily: 'sans-serif',
+  },
+};
