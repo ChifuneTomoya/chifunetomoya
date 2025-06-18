@@ -19,4 +19,6 @@ class UserInput(BaseModel):
 
 @app.post("/question")
 def handle_question(data: UserInput):
-    return {"response": f"{data.name}さん、こんにちは！"}
+    return {
+        "response": f"{data.name}さん、ようこそ！！質問内容は「{data.question}」ですね！！"
+    }
