@@ -1,48 +1,39 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { Auth } from 'aws-amplify';
+
 
 export default function Login({ setAuth }) {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    if (!username || !password) {
-      setError('ユーザー名とパスワードを入力してください');
+    if (!email || !password) {
+      setError('メールアドレスとパスワードを入力してください');
       return;
     }
-
     setLoading(true);
     setError('');
 
     try {
-      const testAuth = btoa(`${username}:${password}`);
-      const res = await fetch('https://nmnhnzdpkn.ap-northeast-1.awsapprunner.com/question', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${testAuth}`,
-        },
-        body: JSON.stringify({ question: "こんにちは", nickname: username, category: "その他" }),
+      const user = await Auth.signIn(email, password);
 
-
-      });
-
-      if (res.ok) {
-        setAuth({ username, password });
-        navigate('/home');
-      } else {
-        const contentType = res.headers.get('Content-Type');
-        const data = contentType && contentType.includes('application/json')
-          ? await res.json()
-          : { detail: 'ログインに失敗しました' };
-        setError(data.detail || 'ログインに失敗しました');
+      if (!user.attributes || !user.attributes.email_verified) {
+        setError('メール認証が完了していません。メールを確認してください。');
+        setLoading(false);
+        return;
       }
+
+      const session = await Auth.currentSession();
+      const idToken = session.getIdToken().getJwtToken();
+
+      setAuth({ email, idToken });
+      navigate('/home');
     } catch (err) {
-      console.error(err);
-      setError('ネットワークエラー');
+      setError('ログインに失敗しました：' + err.message);
     } finally {
       setLoading(false);
     }
@@ -50,13 +41,13 @@ export default function Login({ setAuth }) {
 
   return (
     <div style={styles.container}>
-      <h2>ログイン画面</h2>
+      <h2>資格学習アプリ - ログイン</h2>
       <input
         style={styles.input}
-        type="text"
-        placeholder="ユーザー名"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
+        type="email"
+        placeholder="メールアドレス"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
       />
       <input
         style={styles.input}
@@ -66,9 +57,12 @@ export default function Login({ setAuth }) {
         onChange={(e) => setPassword(e.target.value)}
       />
       <button style={styles.button} onClick={handleLogin} disabled={loading}>
-        {loading ? '送信中...' : 'ログイン'}
+        {loading ? '認証中...' : 'ログイン'}
       </button>
       {error && <p style={{ color: 'red' }}>{error}</p>}
+      <p style={{ marginTop: 20 }}>
+        アカウントをお持ちでない方は <Link to="/register">新規登録</Link>
+      </p>
     </div>
   );
 }
@@ -83,6 +77,7 @@ const styles = {
     borderRadius: '20px',
     textAlign: 'center',
     fontFamily: 'sans-serif',
+    backgroundColor: '#f5faff',
   },
   input: {
     width: '100%',
@@ -97,7 +92,7 @@ const styles = {
     fontSize: '16px',
     borderRadius: '10px',
     border: 'none',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2196F3',
     color: 'white',
     cursor: 'pointer',
   },

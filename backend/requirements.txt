@@ -53,3 +53,6 @@ websockets==15.0.1
 
 fastapi
 uvicorn
+python-jose[cryptography]
+requests
+python-jose

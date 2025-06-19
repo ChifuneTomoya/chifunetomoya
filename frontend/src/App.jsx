@@ -1,31 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Amplify, Auth } from 'aws-amplify';   // ← ここでAmplifyをimport
+import awsExports from './aws-exports'; // 自動生成ファイル
+
+
 import Login from './Login';
+import Register from './Register';
 import Home from './Home';
+
+Amplify.configure(awsExports);
 
 export default function App() {
   const [auth, setAuth] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 初回読み込み時に localStorage から認証情報を復元
   useEffect(() => {
-    const savedAuth = localStorage.getItem('auth');
-    if (savedAuth) {
-      setAuth(JSON.parse(savedAuth));
-    }
-    // 読み込み中アニメーション用に1秒だけ遅延
-    setTimeout(() => setLoading(false), 1000);
-  }, []);
+  Auth.currentAuthenticatedUser()
+    .then(async user => {
+      const session = await Auth.currentSession();
+      const idToken = session.getIdToken().getJwtToken();
 
-  // ログイン成功時に localStorage に保存
+      setAuth({
+        email: user.attributes.email,
+        idToken: idToken,
+      });
+      setLoading(false);
+    })
+    .catch(() => {
+      setAuth(null);
+      setLoading(false);
+    });
+}, []);
+
   function handleSetAuth(authData) {
     setAuth(authData);
-    localStorage.setItem('auth', JSON.stringify(authData));
+    if (authData) {
+      localStorage.setItem('auth', JSON.stringify(authData));
+    } else {
+      localStorage.removeItem('auth');
+    }
   }
 
   if (loading) {
     return (
-      <div style={styles.loading}>
+      <div style={{ textAlign: 'center', marginTop: 100 }}>
         <h2>資格学習アプリ</h2>
         <p>読み込み中...</p>
       </div>
@@ -36,19 +54,9 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Login setAuth={handleSetAuth} />} />
-        <Route
-          path="/home"
-          element={auth ? <Home auth={auth} /> : <Navigate to="/" />}
-        />
+        <Route path="/register" element={<Register setAuth={handleSetAuth} />} />
+        <Route path="/home" element={auth ? <Home auth={auth} setAuth={handleSetAuth} /> : <Navigate to="/" />} />
       </Routes>
     </Router>
   );
 }
-
-const styles = {
-  loading: {
-    textAlign: 'center',
-    marginTop: '100px',
-    fontFamily: 'sans-serif',
-  },
-};
