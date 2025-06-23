@@ -1,36 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Amplify, Auth } from 'aws-amplify';   // ← ここでAmplifyをimport
-import awsExports from './aws-exports'; // 自動生成ファイル
-
+import { Amplify, Auth } from 'aws-amplify';
+import awsconfig from './aws-exports';
 
 import Login from './Login';
 import Register from './Register';
 import Home from './Home';
 
-Amplify.configure(awsExports);
+Amplify.configure(awsconfig);
+console.log(awsconfig);
 
 export default function App() {
   const [auth, setAuth] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  Auth.currentAuthenticatedUser()
-    .then(async user => {
-      const session = await Auth.currentSession();
-      const idToken = session.getIdToken().getJwtToken();
+    // localStorage から auth を復元
+    const savedAuth = localStorage.getItem('auth');
+    if (savedAuth) {
+      try {
+        const parsed = JSON.parse(savedAuth);
+        setAuth(parsed);
+        setLoading(false);
+        return;
+      } catch (e) {
+        console.error("auth の復元に失敗しました:", e);
+      }
+    }
 
-      setAuth({
-        email: user.attributes.email,
-        idToken: idToken,
+    // fallback：Cognito セッションがあれば取得
+    Auth.currentAuthenticatedUser()
+      .then(async (user) => {
+        const session = await Auth.currentSession();
+        const idToken = session.getIdToken().getJwtToken();
+        const newAuth = {
+          email: user.attributes.email,
+          idToken: idToken,
+        };
+        setAuth(newAuth);
+        localStorage.setItem('auth', JSON.stringify(newAuth));
+      })
+      .catch(() => {
+        setAuth(null);
+      })
+      .finally(() => {
+        setLoading(false);
       });
-      setLoading(false);
-    })
-    .catch(() => {
-      setAuth(null);
-      setLoading(false);
-    });
-}, []);
+  }, []);
 
   function handleSetAuth(authData) {
     setAuth(authData);
@@ -55,7 +71,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Login setAuth={handleSetAuth} />} />
         <Route path="/register" element={<Register setAuth={handleSetAuth} />} />
-        <Route path="/home" element={auth ? <Home auth={auth} setAuth={handleSetAuth} /> : <Navigate to="/" />} />
+        <Route
+          path="/home"
+          element={auth ? <Home auth={auth} setAuth={handleSetAuth} /> : <Navigate to="/" />}
+        />
       </Routes>
     </Router>
   );

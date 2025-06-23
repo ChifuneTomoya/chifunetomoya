@@ -1,69 +1,54 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-
 export default function Home({ auth, setAuth }) {
-  // auth はログイン情報（idTokenなど）を想定
   const [question, setQuestion] = useState('');
-  const [response, setResponse] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [nickname, setNickname] = useState('');
   const [category, setCategory] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
-  const [submittedCategory, setSubmittedCategory] = useState('');
-  const [correctAnswer, setCorrectAnswer] = useState('');
-  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiAnswer, setAiAnswer] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [showAnswer, setShowAnswer] = useState(false);
-  const [showExplanation, setShowExplanation] = useState(false);
 
-  const categories = ['ITパスポート', '基本情報', '応用情報', 'その他'];
   const navigate = useNavigate();
+  const categories = ['ITパスポート', '基本情報', '応用情報', 'その他'];
 
   const handleStudy = async () => {
-    if (!question.trim() || !nickname.trim() || !category) {
+    if (!nickname.trim() || !category || !question.trim()) {
       setError('すべての項目を入力してください。');
       return;
     }
-
     if (!auth || !auth.idToken) {
       setError('ログインが必要です。');
       return;
     }
-
     setError('');
     setLoading(true);
     setSubmittedQuestion(question);
-    setSubmittedCategory(category);
     setShowAnswer(false);
-    setShowExplanation(false);
 
     try {
-      const res = await fetch('https://nmnhnzdpkn.ap-northeast-1.awsapprunner.com/study', {
+      const res = await fetch('http://localhost:8000/study', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.idToken}`,
+          Authorization: `Bearer ${auth.idToken}`,
         },
-        body: JSON.stringify({ question, nickname, category }),
-
+        body: JSON.stringify({ nickname, category, question }),
       });
-      console.log("送信するIDトークン:", auth.idToken);
 
       const data = await res.json();
 
       if (res.ok) {
-        setAiQuestion(data.question || question);
-        setCorrectAnswer(data.answer || '正解は設定されていません');
-        setResponse(data.explanation || '解説はありません');
+        setAiAnswer(data.answer || data.answer === '' ? data.answer : data.answer || '回答がありません');
       } else {
-        setResponse(data.detail || 'エラーが発生しました');
-        setCorrectAnswer('');
+        setError(data.detail || 'エラーが発生しました');
+        setAiAnswer('');
       }
     } catch (e) {
       setError('通信に失敗しました');
-      setResponse('');
-      setCorrectAnswer('');
+      setAiAnswer('');
     } finally {
       setLoading(false);
     }
@@ -82,10 +67,11 @@ export default function Home({ auth, setAuth }) {
       <div style={styles.inputGroup}>
         <label>お名前（ニックネーム）</label>
         <input
+          type="text"
           style={styles.input}
+          placeholder="ニックネームを入力"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
-          placeholder="ニックネームを入力"
         />
       </div>
 
@@ -98,77 +84,61 @@ export default function Home({ auth, setAuth }) {
         >
           <option value="">▼ カテゴリを選んでください</option>
           {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
+            <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
       </div>
 
-      <textarea
-        style={styles.textarea}
-        placeholder="学習したい問題・内容を入力してください"
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-      />
+      <div style={styles.inputGroup}>
+        <label>質問内容</label>
+        <textarea
+          style={styles.textarea}
+          placeholder="学習したい問題・内容を入力してください"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+        />
+      </div>
+
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      <button style={styles.button} onClick={handleStudy} disabled={loading}>
-        {loading ? 'AIが出題中...' : 'AIに問題をだしてもらう'}
+      <button
+        style={styles.button}
+        onClick={handleStudy}
+        disabled={loading}
+        aria-label="AIに質問する"
+      >
+        {loading ? 'AIが回答中...' : 'AIに質問する'}
       </button>
 
       <div style={styles.responseBox}>
         {submittedQuestion ? (
           <>
-            <p>
-              <strong>
-                {nickname} さん（{submittedCategory}）の問題：
-              </strong>
-            </p>
-            <p>{aiQuestion || submittedQuestion}</p>
+            <p><strong>{nickname} さんの質問：</strong></p>
+            <p>{submittedQuestion}</p>
 
             {!showAnswer && (
               <button
                 style={{ ...styles.answerButton, backgroundColor: '#007bff', color: '#fff' }}
                 onClick={() => setShowAnswer(true)}
               >
-                ✅ 正解を見る
+                ✅ 回答を見る
               </button>
             )}
 
             {showAnswer && (
               <>
                 <hr />
-                <p><strong>正解：</strong></p>
-                <p>{correctAnswer}</p>
-              </>
-            )}
-
-            {!showExplanation && (
-              <button
-                style={{ ...styles.answerButton, backgroundColor: '#ffc107', color: '#000' }}
-                onClick={() => setShowExplanation(true)}
-              >
-                📘 解説を見る
-              </button>
-            )}
-
-            {showExplanation && (
-              <>
-                <hr />
-                <p><strong>AIの解説：</strong></p>
-                <p>{response}</p>
+                <p><strong>AIの回答：</strong></p>
+                <p>{aiAnswer}</p>
               </>
             )}
           </>
         ) : (
-          <p>← ここに問題とAIの解説が表示されます</p>
+          <p>← ここに質問とAIの回答が表示されます</p>
         )}
       </div>
 
-      <button onClick={handleLogout} style={styles.logoutButton}>
-        ログアウト
-      </button>
+      <button style={styles.logoutButton} onClick={handleLogout}>ログアウト</button>
     </div>
   );
 }
