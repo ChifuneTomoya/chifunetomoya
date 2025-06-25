@@ -2,146 +2,87 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Home({ auth, setAuth }) {
-  // ユーザーが入力する質問内容
   const [question, setQuestion] = useState('');
-  // ユーザーのニックネーム
   const [nickname, setNickname] = useState('');
-  // 質問のカテゴリ（例：基本情報、応用情報など）
   const [category, setCategory] = useState('');
-  // 送信済みの質問を保存。回答表示用に使う
-  const [submittedQuestion, setSubmittedQuestion] = useState('');
-  // AIの解説回答を格納
-  const [aiAnswer, setAiAnswer] = useState('');
-  // Claude（別AI）の回答を格納
-  const [claudeAnswer, setClaudeAnswer] = useState('');
-  // API呼び出し中のローディング状態
-  const [loading, setLoading] = useState(false);
-  // エラー表示用メッセージ
+  const [quiz, setQuiz] = useState(null);
+  const [selectedChoice, setSelectedChoice] = useState(null);
   const [error, setError] = useState('');
-  // Claudeの回答表示ボタンを押したかどうか
-  const [showClaudeAnswer, setShowClaudeAnswer] = useState(false);
-  // AIの解説回答表示ボタンを押したかどうか
-  const [showAiAnswer, setShowAiAnswer] = useState(false);
-  // Claudeの回答が準備できているかどうか
-  const [claudeReady, setClaudeReady] = useState(false);
-  // 一時的な通知メッセージ
-  const [notification, setNotification] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showAnswer, setShowAnswer] = useState(false);
 
-  // 画面遷移に使うReact Routerのhook
   const navigate = useNavigate();
 
-  // カテゴリの選択肢
-  const categories = ['question.pdf', '基本情報', '応用情報', 'その他'];
+  const categories = ['問題集', '基本情報', '応用情報', 'その他'];
 
-  // 質問をAPIに送ってAIの回答を取得する処理
   const handleStudy = async () => {
-    // 入力チェック（ニックネーム・カテゴリ・質問は必須）
-    if (!nickname.trim() || !category || !question.trim()) {
+    if (!nickname || !category || !question) {
       setError('すべての項目を入力してください。');
       return;
     }
-    // ログイン認証情報（idToken）がない場合はエラー
-    if (!auth || !auth.idToken) {
-      console.log('auth:', auth);
+
+    if (!auth?.idToken) {
       setError('ログインが必要です。');
       return;
     }
 
-    // エラーをリセットし、ローディング状態にする
     setError('');
     setLoading(true);
-
-    // 質問内容を送信済み質問として保存し、前の回答はクリア
-    setSubmittedQuestion(question);
-    setShowClaudeAnswer(false);
-    setShowAiAnswer(false);
-    setAiAnswer('');
-    setClaudeAnswer('');
-    setClaudeReady(false);
-    setNotification('');
+    setQuiz(null);
+    setSelectedChoice(null);
+    setShowAnswer(false);
 
     try {
-      // 自作のバックエンドAPI（FastAPI）にPOSTでリクエスト送信
+      // ■ ここでcategoryもPOSTデータに含めるよう修正
       const res = await fetch('http://localhost:8000/study', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // 認証トークンをヘッダーに含める
           Authorization: `Bearer ${auth.idToken}`,
         },
-        // ニックネーム、カテゴリ、質問内容をJSONで送る
         body: JSON.stringify({ nickname, category, question }),
       });
 
-      // レスポンスをJSONで受け取る
       const data = await res.json();
 
-      // レスポンスが成功なら
       if (res.ok) {
-        // Claude回答をセット。なければ空文字
-        setClaudeAnswer(data.claudeAnswer || '');
-        // Claude回答があれば準備完了状態にして通知を表示
-        if (data.claudeAnswer) {
-          setClaudeReady(true);
-          setNotification('✅ 回答が準備できました！ボタンを押してご確認ください。');
-          // 3秒後に通知を消す
-          setTimeout(() => setNotification(''), 3000);
-        }
-        // AIの解説回答をセット。なければ「回答がありません」と表示
-        setAiAnswer(data.answer || '回答がありません');
+        setQuiz(data.quiz);
       } else {
-        // エラーがあれば表示
         setError(data.detail || 'エラーが発生しました');
       }
     } catch (e) {
-      // 通信失敗時はエラーメッセージ表示
-      setError('通信に失敗しました');
+      setError('通信エラーが発生しました');
     } finally {
-      // 処理終了でローディング解除
       setLoading(false);
     }
   };
 
-  // ログアウト処理。localStorageから認証情報を削除し、親コンポーネントにもnullをセット
   const handleLogout = () => {
     localStorage.removeItem('auth');
     if (typeof setAuth === 'function') setAuth(null);
-    // ログイン画面へ戻る
     navigate('/');
+  };
+
+  const handleChoiceSelect = (choice) => {
+    setSelectedChoice(choice);
+    setShowAnswer(true);
   };
 
   return (
     <div style={styles.container}>
       <h2>資格学習アプリ</h2>
 
-      {/* 一時通知を表示 */}
-      {notification && (
-        <div
-          style={{
-            backgroundColor: '#d4edda',
-            color: '#155724',
-            padding: '10px',
-            borderRadius: '6px',
-            marginBottom: '10px',
-          }}
-        >
-          {notification}
-        </div>
-      )}
-
-      {/* ニックネーム入力 */}
       <div style={styles.inputGroup}>
-        <label>お名前（ニックネーム）</label>
+        <label>お名前</label>
         <input
           type="text"
           style={styles.input}
-          placeholder="ニックネームを入力"
+          placeholder="ニックネーム"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
         />
       </div>
 
-      {/* カテゴリ選択 */}
       <div style={styles.inputGroup}>
         <label>試験カテゴリ</label>
         <select
@@ -149,119 +90,128 @@ export default function Home({ auth, setAuth }) {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         >
-          <option value="">▼ カテゴリを選んでください</option>
+          <option value="">▼ 選択してください</option>
           {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
+            <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
       </div>
 
-      {/* 質問入力欄 */}
       <div style={styles.inputGroup}>
         <label>質問内容</label>
         <textarea
           style={styles.textarea}
-          placeholder="学習したい問題・内容を入力してください"
+          placeholder="例：OSI参照モデルについて知りたい"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
       </div>
 
-      {/* エラーメッセージ表示 */}
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      {/* AIに質問ボタン。ローディング中は無効 */}
       <button
-        style={styles.button}
         onClick={handleStudy}
         disabled={loading}
-        aria-label="AIに質問する"
+        style={{
+          ...styles.button,
+          backgroundColor: loading ? '#6c757d' : '#007bff',
+        }}
       >
-        {loading ? 'AIが回答中...' : 'AIに質問する'}
+        {loading ? 'AIが問題を作成中...' : 'AIに質問する'}
       </button>
 
-      {/* 回答表示エリア */}
-      <div style={styles.responseBox}>
-        {/* 質問が送信済みの場合に表示 */}
-        {submittedQuestion ? (
-          <>
-            <p>
-              <strong>{nickname} さんの質問：</strong>
-            </p>
-            <p>{submittedQuestion}</p>
+      {quiz && (
+        <div style={styles.quizBox}>
+          <h3>{quiz.問題文}</h3>
+          <p><strong>カテゴリ:</strong> {category}</p> {/* カテゴリ表示を追加 */}
 
-            {/* Claude回答があれば回答を見るボタンまたは回答本文を表示 */}
-            {claudeAnswer && (
-              <>
-                {!showClaudeAnswer ? (
-                  <button
-                    style={{
-                      ...styles.answerButton,
-                      backgroundColor: claudeReady ? '#007bff' : '#6c757d',
-                      color: '#fff',
-                      cursor: claudeReady ? 'pointer' : 'not-allowed',
-                    }}
-                    onClick={() => {
-                      if (claudeReady) setShowClaudeAnswer(true);
-                    }}
-                    disabled={!claudeReady}
-                  >
-                    {claudeReady ? '✅ 回答を見る' : '回答を取得中...'}
-                  </button>
-                ) : (
-                  <>
-                    <p>
-                      <strong>回答：</strong>
-                    </p>
-                    <p>{claudeAnswer}</p>
-                    <hr />
-                  </>
-                )}
-              </>
-            )}
+          <ul style={styles.choiceList}>
+            {quiz.選択肢.map((choice, index) => {
+              const letter = ['A', 'B', 'C', 'D'][index];
+              const isCorrect = letter === quiz.正解;
+              const isSelected = selectedChoice === choice;
 
-            {/* AIの解説回答があれば解説を見るボタンまたは解説本文を表示 */}
-            {aiAnswer && (
-              <>
-                {!showAiAnswer ? (
+              let backgroundColor = '#fff';
+              let borderColor = '#ccc';
+              let color = '#000';
+
+              if (selectedChoice) {
+                if (isSelected && isCorrect) {
+                  backgroundColor = '#d4edda';
+                  borderColor = '#28a745';
+                  color = '#155724';
+                } else if (isSelected) {
+                  backgroundColor = '#f8d7da';
+                  borderColor = '#dc3545';
+                  color = '#721c24';
+                } else if (isCorrect) {
+                  backgroundColor = '#e2f0d9';
+                  borderColor = '#28a745';
+                  color = '#155724';
+                } else {
+                  color = '#999';
+                }
+              }
+
+              return (
+                <li key={choice} style={{ marginBottom: 10 }}>
                   <button
+                    onClick={() => handleChoiceSelect(choice)}
+                    disabled={!!selectedChoice}
                     style={{
-                      ...styles.answerButton,
-                      backgroundColor: '#28a745',
-                      color: '#fff',
+                      ...styles.choiceButton,
+                      backgroundColor,
+                      borderColor,
+                      color,
                     }}
-                    onClick={() => setShowAiAnswer(true)}
                   >
-                    ✅ 解説を見る
+                    {letter}. {choice}
                   </button>
-                ) : (
-                  <>
-                    <p>
-                      <strong>解説：</strong>
-                    </p>
-                    <p>{aiAnswer}</p>
-                  </>
-                )}
-              </>
-            )}
-          </>
-        ) : (
-          // まだ質問が送信されていない場合のプレースホルダー表示
-          <p>← ここに質問とAIの回答が表示されます</p>
-        )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {showAnswer && (
+            <div style={styles.explanationBox}>
+              <strong>正解：</strong> {quiz.正解}. {quiz.選択肢[['A','B','C','D'].indexOf(quiz.正解)]}
+              <br />
+              <strong>解説：</strong> {quiz.解説}
+                {quiz.出典ページ && (
+                <>
+                  <br />
+                  <strong>出典ページ：</strong> {quiz.出典ページ}ページ
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={styles.buttonGroup}>
+        <button
+          style={{ ...styles.button, backgroundColor: '#007bff' }}
+          onClick={() => navigate('/quiz')}
+        >
+          クイズページへ
+        </button>
+        <button
+          style={{ ...styles.button, backgroundColor: '#28a745' }}
+          onClick={() => navigate('/Aiquiz')}
+        >
+          AIクイズページへ
+        </button>
+        <button
+          style={styles.logoutButton}
+          onClick={handleLogout}
+        >
+          ログアウト
+        </button>
       </div>
-
-      {/* ログアウトボタン */}
-      <button style={styles.logoutButton} onClick={handleLogout}>
-        ログアウト
-      </button>
     </div>
   );
 }
 
-// スタイル定義
 const styles = {
   container: {
     maxWidth: 600,
@@ -283,7 +233,7 @@ const styles = {
   },
   textarea: {
     width: '100%',
-    height: 120,
+    height: 100,
     padding: 10,
     fontSize: 16,
     borderRadius: 6,
@@ -293,35 +243,48 @@ const styles = {
   button: {
     padding: '10px 20px',
     fontSize: 16,
-    backgroundColor: '#007bff',
     color: '#fff',
     border: 'none',
     borderRadius: 6,
     cursor: 'pointer',
     marginTop: 10,
-  },
-  answerButton: {
-    marginTop: 20,
-    marginBottom: 20,
-    padding: '12px 20px',
-    fontSize: 16,
-    border: 'none',
-    borderRadius: 8,
-    cursor: 'pointer',
-    display: 'block',
     width: '100%',
-    textAlign: 'center',
   },
-  responseBox: {
-    marginTop: 30,
-    padding: 20,
+  choiceList: {
+    listStyle: 'none',
+    padding: 0,
+  },
+  choiceButton: {
+    width: '100%',
+    padding: '10px 16px',
+    fontSize: 16,
     border: '1px solid #ccc',
     borderRadius: 6,
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  explanationBox: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 6,
+    border: '1px solid #ddd',
+    color: '#333',
+  },
+  quizBox: {
+    marginTop: 30,
+    padding: 20,
     backgroundColor: '#fff',
-    whiteSpace: 'pre-wrap', // 改行を反映して表示
+    borderRadius: 8,
+    border: '1px solid #ddd',
+  },
+  buttonGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    marginTop: 20,
   },
   logoutButton: {
-    marginTop: 20,
     backgroundColor: '#dc3545',
     color: '#fff',
     border: 'none',
@@ -329,5 +292,6 @@ const styles = {
     fontSize: 16,
     borderRadius: 6,
     cursor: 'pointer',
+    width: '100%',
   },
 };

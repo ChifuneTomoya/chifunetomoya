@@ -24,6 +24,11 @@ import os
 import requests
 # ロギング（ログ出力設定や利用用）
 import logging
+#配列
+from typing import List
+#Json
+import json
+from time import sleep
 
 # ロギングの基本設定：INFOレベル以上のログを標準出力に出す
 logging.basicConfig(level=logging.INFO)
@@ -131,31 +136,69 @@ class StudyInput(BaseModel):
     category: constr(min_length=1, max_length=50)  # type: ignore  # 問題カテゴリ（例：基本情報など）
 
 # メインの質問処理エンドポイント（POST /study）
+from time import sleep  # 追加
+
 @app.post("/study")
 async def study(data: StudyInput, email: str = Depends(verify_jwt_token)):
     try:
-        # カテゴリーを前置きしてナレッジベースへ送信
-        input_text = f"カテゴリー: {data.category}\n質問: {data.question}"
-        response = bedrock_client.retrieve_and_generate(
-            input={"text": input_text},
-            retrieveAndGenerateConfiguration={
-                "type": "KNOWLEDGE_BASE",
-                "knowledgeBaseConfiguration": {
-                    "knowledgeBaseId": KNOWLEDGE_BASE_ID,
-                    "modelArn": MODEL_ARN,
-                }
-            }
-        )
+        # 🔍 Claudeに渡すプロンプトを改善（曖昧な質問でもヒットしやすく）
+        input_text = f"""
+あなたは資格試験のナレッジベース検索AIです。
+以下のデータは「Q:（質問）」と「A:（解説）」のペアで構成されており、各項目には「出典ページ情報」も含まれています。
 
-        intermediate_answer = response.get("output", {}).get("text", "")
+--- ナレッジベースの構成 ---
+形式: 
+Q: 質問内容
+A: 解説
+-----------------------------
+
+ユーザーからの質問: 「{data.question}」
+
+この質問と**直接的、もしくは意味的に関連する**内容を、できるだけ広く検索してください。
+キーワードが一致しなくても、**話題・テーマ・背景知識が近いと判断される**場合は該当とみなしてください。
+
+以下の3項目を出力してください：
+- Q:（元の問題文）
+- A:（解説文）
+
+出力例：
+Q: ◯◯とは何か？
+A: ◯◯は〜〜です。〜に活用されます。
+
+複数件該当する場合は、すべて提示してください。
+"""
+
+        # 🔁 Throttling対策付きのBedrockリクエスト
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = bedrock_client.retrieve_and_generate(
+                    input={"text": input_text},
+                    retrieveAndGenerateConfiguration={
+                        "type": "KNOWLEDGE_BASE",
+                        "knowledgeBaseConfiguration": {
+                            "knowledgeBaseId": KNOWLEDGE_BASE_ID,
+                            "modelArn": MODEL_ARN,
+                        }
+                    }
+                )
+                break
+            except bedrock_client.exceptions.ThrottlingException as e:
+                if attempt < max_retries - 1:
+                    logger.warning("Throttling発生、再試行します... (%d回目)", attempt + 1)
+                    sleep(2)
+                else:
+                    logger.error("BedrockのThrottlingが最大リトライ回数を超えました")
+                    raise HTTPException(429, "AIの応答が制限されています。時間をおいて再実行してください。")
+
+        intermediate_answer = response.get("output", {}).get("text", "").strip()
         logger.info("Claude中間回答: %s", intermediate_answer)
-        logger.info("Bedrock full response: %s", response)
-        citations = response.get("citations", [])
 
         if not intermediate_answer:
-            raise HTTPException(500, "Claudeによる中間回答の取得に失敗しました。")
+            raise HTTPException(500, "Claudeから有効な回答が得られませんでした。")
 
-        # citationsから出典情報を抽出（最初の1件を使用）
+        # citationsからページ番号・ファイル名を抽出してsource_infoを作成
+        citations = response.get("citations", [])
         source_info = ""
         if citations:
             try:
@@ -166,40 +209,120 @@ async def study(data: StudyInput, email: str = Depends(verify_jwt_token)):
                 source_info = f"（出典: {filename} {page}ページ）"
                 intermediate_answer += f"\n\n{source_info}"
             except Exception as e:
-                logger.warning(f"出典情報の解析に失敗: {e}")
+                logger.warning(f"出典情報の解析に失敗しました: {e}")
 
-        # OpenAIへのプロンプトを構築
+        # 🎓 OpenAIにクイズ生成を依頼（Claudeの回答を元に構造を整形）
         prompt = f"""
-あなたは親切で信頼できる先生です。
-以下のClaudeからの回答と質問をもとに、詳しく説明してください。
+あなたは教育アプリのAI講師です。
+以下の情報は教材から得られたものです。
+この情報に基づいて、以下のJSON形式で1問の4択クイズを出力してください。
 
-【Claudeの中間回答】
+【教材内容】
 {intermediate_answer}
 
-【ユーザーの質問】
-{data.question}
-"""
+【出力形式】
+{{
+  "問題文": "〜？",
+  "選択肢": ["A", "B", "C", "D"],
+  "正解": "A",  // A〜Dのいずれか
+  "解説": "〜"
+}}
 
+※出力にはコードブロック（```など）は含めず、JSONオブジェクトのみを返してください。
+"""
         openai_response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "あなたは親切で丁寧な教師です。"},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "あなたは正確で簡潔な教育AIです。"},
+                {"role": "user", "content": prompt},
             ],
             temperature=0.3,
         )
 
-        final_answer = openai_response.choices[0].message.content.strip()
+        raw_answer = openai_response.choices[0].message.content.strip()
+        logger.info("OpenAI raw_answer: %s", raw_answer)
+
+        try:
+            quiz_json = json.loads(raw_answer)
+        except json.JSONDecodeError as je:
+            logger.error("OpenAI回答のJSONパースエラー: %s\n内容: %s", je, raw_answer)
+            raise HTTPException(status_code=500, detail="AIの出力が不正なJSON形式でした。")
 
         return {
             "nickname": data.nickname,
             "user": email,
             "question": data.question,
-            "claudeAnswer": intermediate_answer,
-            "answer": final_answer,
-            "source": source_info  # 必要に応じてフロント表示に使用
+            "quiz": quiz_json,
+            "source": source_info
         }
 
     except Exception as e:
-        logger.exception("AI処理中に例外が発生しました")
-        raise HTTPException(500, f"AI処理中にエラーが発生しました: {e}")
+        logger.exception("問題生成中に例外が発生しました")
+        raise HTTPException(status_code=500, detail="AIからのクイズ生成でエラーが発生しました。")
+
+
+
+
+
+
+
+class ChoiceQuestion(BaseModel):
+    問題文: str
+    選択肢: List[str]
+    正解: str
+    解説: str
+
+# クイズ問題（仮の固定配列）
+quiz_questions = [
+    ChoiceQuestion(
+        問題文="太陽は何ですか？",
+        選択肢=["星", "惑星", "衛星", "小惑星"],
+        正解="星",
+        解説="太陽は恒星であり、太陽系の中心に位置しています。"
+    ),
+    ChoiceQuestion(
+        問題文="日本の首都はどこですか？",
+        選択肢=["大阪", "京都", "東京", "札幌"],
+        正解="東京",
+        解説="日本の首都は東京であり、政治・経済・文化の中心地です。"
+    )
+]
+
+
+@app.get("/questions", response_model=List[ChoiceQuestion])
+def get_quiz_questions(user_email: str = Depends(verify_jwt_token)):
+    return quiz_questions
+
+
+
+@app.post("/generate_quiz")
+async def generate_quiz(data: StudyInput, email: str = Depends(verify_jwt_token)):
+    prompt = f"""
+以下の形式で1問の4択クイズをJSON形式で出力してください。
+
+{{
+  "問題文": "...",
+  "選択肢": ["A", "B", "C", "D"],
+  "正解": "A",
+  "解説": "..."
+}}
+
+カテゴリ: {data.category}
+質問: {data.question}
+"""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            # response_format="json" は不要、安全のため削除
+        )
+        quiz_text = response.choices[0].message.content.strip()
+        quiz_data = json.loads(quiz_text)
+        return {"quiz": quiz_data}
+
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"JSON解析に失敗しました: {e}\n内容: {quiz_text}")
+    except Exception as e:
+        raise HTTPException(500, f"クイズ生成中にエラーが発生しました: {e}")
