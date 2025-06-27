@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Home({ auth, setAuth }) {
   const [question, setQuestion] = useState('');
-  const [nickname, setNickname] = useState('');
   const [category, setCategory] = useState('');
   const [quiz, setQuiz] = useState(null);
   const [selectedChoice, setSelectedChoice] = useState(null);
@@ -12,12 +11,11 @@ export default function Home({ auth, setAuth }) {
   const [showAnswer, setShowAnswer] = useState(false);
 
   const navigate = useNavigate();
-
   const categories = ['問題集', '基本情報', '応用情報', 'その他'];
 
   const handleStudy = async () => {
-    if (!nickname || !category || !question) {
-      setError('すべての項目を入力してください。');
+    if (!category) {
+      setError('カテゴリーを選択してください');
       return;
     }
 
@@ -33,14 +31,16 @@ export default function Home({ auth, setAuth }) {
     setShowAnswer(false);
 
     try {
-      // ■ ここでcategoryもPOSTデータに含めるよう修正
       const res = await fetch('http://localhost:8000/study', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${auth.idToken}`,
         },
-        body: JSON.stringify({ nickname, category, question }),
+        body: JSON.stringify({
+          category,
+          question: question.trim() || '（AIによる自動生成）',
+        }),
       });
 
       const data = await res.json();
@@ -73,17 +73,6 @@ export default function Home({ auth, setAuth }) {
       <h2>資格学習アプリ</h2>
 
       <div style={styles.inputGroup}>
-        <label>お名前</label>
-        <input
-          type="text"
-          style={styles.input}
-          placeholder="ニックネーム"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-        />
-      </div>
-
-      <div style={styles.inputGroup}>
         <label>試験カテゴリ</label>
         <select
           style={styles.input}
@@ -98,7 +87,7 @@ export default function Home({ auth, setAuth }) {
       </div>
 
       <div style={styles.inputGroup}>
-        <label>質問内容</label>
+        <label>問題内容</label>
         <textarea
           style={styles.textarea}
           placeholder="例：OSI参照モデルについて知りたい"
@@ -107,7 +96,17 @@ export default function Home({ auth, setAuth }) {
         />
       </div>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && (
+        <div style={{ color: 'red' }}>
+          {(() => {
+            if (typeof error === 'string') return error;
+            if (Array.isArray(error))
+              return error.map((e, i) => <p key={i}>{e?.msg || JSON.stringify(e)}</p>);
+            if (typeof error === 'object') return <p>{error?.msg || JSON.stringify(error)}</p>;
+            return '不明なエラーが発生しました';
+          })()}
+        </div>
+      )}
 
       <button
         onClick={handleStudy}
@@ -117,13 +116,17 @@ export default function Home({ auth, setAuth }) {
           backgroundColor: loading ? '#6c757d' : '#007bff',
         }}
       >
-        {loading ? 'AIが問題を作成中...' : 'AIに質問する'}
+        {loading ? 'AIが問題を作成中...' : '問題を作成'}
       </button>
 
       {quiz && (
         <div style={styles.quizBox}>
-          <h3>{quiz.問題文}</h3>
-          <p><strong>カテゴリ:</strong> {category}</p> {/* カテゴリ表示を追加 */}
+          <h3>
+            {quiz.問題文 === '（AIによる自動生成）'
+              ? 'AIがランダムに出題しました'
+              : quiz.問題文}
+          </h3>
+          <p><strong>カテゴリ:</strong> {category}</p>
 
           <ul style={styles.choiceList}>
             {quiz.選択肢.map((choice, index) => {
@@ -134,20 +137,24 @@ export default function Home({ auth, setAuth }) {
               let backgroundColor = '#fff';
               let borderColor = '#ccc';
               let color = '#000';
+              let icon = null;
 
               if (selectedChoice) {
                 if (isSelected && isCorrect) {
                   backgroundColor = '#d4edda';
                   borderColor = '#28a745';
                   color = '#155724';
-                } else if (isSelected) {
+                  icon = '✓ 正解';
+                } else if (isSelected && !isCorrect) {
                   backgroundColor = '#f8d7da';
                   borderColor = '#dc3545';
                   color = '#721c24';
+                  icon = '✗ 不正解';
                 } else if (isCorrect) {
                   backgroundColor = '#e2f0d9';
                   borderColor = '#28a745';
                   color = '#155724';
+                  icon = '✓ 正解';
                 } else {
                   color = '#999';
                 }
@@ -166,6 +173,9 @@ export default function Home({ auth, setAuth }) {
                     }}
                   >
                     {letter}. {choice}
+                    {icon && (
+                      <span style={{ float: 'right', fontWeight: 'bold' }}>{icon}</span>
+                    )}
                   </button>
                 </li>
               );
@@ -174,10 +184,10 @@ export default function Home({ auth, setAuth }) {
 
           {showAnswer && (
             <div style={styles.explanationBox}>
-              <strong>正解：</strong> {quiz.正解}. {quiz.選択肢[['A','B','C','D'].indexOf(quiz.正解)]}
+              <strong>正解：</strong> {quiz.正解}. {quiz.選択肢[['A', 'B', 'C', 'D'].indexOf(quiz.正解)]}
               <br />
               <strong>解説：</strong> {quiz.解説}
-                {quiz.出典ページ && (
+              {quiz.出典ページ && (
                 <>
                   <br />
                   <strong>出典ページ：</strong> {quiz.出典ページ}ページ
@@ -191,12 +201,6 @@ export default function Home({ auth, setAuth }) {
       <div style={styles.buttonGroup}>
         <button
           style={{ ...styles.button, backgroundColor: '#007bff' }}
-          onClick={() => navigate('/quiz')}
-        >
-          クイズページへ
-        </button>
-        <button
-          style={{ ...styles.button, backgroundColor: '#28a745' }}
           onClick={() => navigate('/Aiquiz')}
         >
           AIクイズページへ
