@@ -90,7 +90,7 @@ export default function Home({ auth, setAuth }) {
         <label>問題内容</label>
         <textarea
           style={styles.textarea}
-          placeholder="例：OSI参照モデルについて知りたい"
+          placeholder="例：理科に関する問題出して"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
@@ -131,7 +131,13 @@ export default function Home({ auth, setAuth }) {
           <ul style={styles.choiceList}>
             {quiz.選択肢.map((choice, index) => {
               const letter = ['A', 'B', 'C', 'D'][index];
-              const isCorrect = letter === quiz.正解;
+              const kana = ['ア', 'イ', 'ウ', 'エ'][index];
+              const isCorrect =
+                quiz.正解 === letter ||
+                quiz.正解 === kana ||
+                choice.startsWith(`${quiz.正解}.`) ||
+                choice.startsWith(`${quiz.正解} `);
+
               const isSelected = selectedChoice === choice;
 
               let backgroundColor = '#fff';
@@ -184,13 +190,17 @@ export default function Home({ auth, setAuth }) {
 
           {showAnswer && (
             <div style={styles.explanationBox}>
-              <strong>正解：</strong> {quiz.正解}. {quiz.選択肢[['A', 'B', 'C', 'D'].indexOf(quiz.正解)]}
+              <strong>正解：</strong> {quiz.正解}. {
+                quiz.選択肢.find((c, idx) =>
+                  c.startsWith(`${quiz.正解}.`) || c.startsWith(`${quiz.正解} `)
+                ) || quiz.選択肢[['A','B','C','D'].indexOf(quiz.正解)] || '不明'
+              }
               <br />
               <strong>解説：</strong> {quiz.解説}
               {quiz.出典ページ && (
                 <>
                   <br />
-                  <strong>出典ページ：</strong> {quiz.出典ページ}ページ
+                  <strong>出典ページ：</strong> {quiz["出典ページ"]}
                 </>
               )}
             </div>
@@ -198,20 +208,10 @@ export default function Home({ auth, setAuth }) {
         </div>
       )}
 
-      <div style={styles.buttonGroup}>
-        <button
-          style={{ ...styles.button, backgroundColor: '#007bff' }}
-          onClick={() => navigate('/Aiquiz')}
-        >
-          AIクイズページへ
-        </button>
-        <button
-          style={styles.logoutButton}
-          onClick={handleLogout}
-        >
-          ログアウト
-        </button>
-      </div>
+      <div style={{ marginTop: 30 }} />
+      <button style={styles.logoutButton} onClick={handleLogout}>
+        ログアウト
+      </button>
     </div>
   );
 }
@@ -297,5 +297,6 @@ const styles = {
     borderRadius: 6,
     cursor: 'pointer',
     width: '100%',
+    marginTop: 30,
   },
 };

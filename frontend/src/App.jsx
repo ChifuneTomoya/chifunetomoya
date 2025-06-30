@@ -6,7 +6,6 @@ import awsconfig from './aws-exports';
 import Login from './Login';
 import Register from './Register';
 import Home from './Home';
-import Aiquiz from './Aiquiz';
 // Amplify設定
 Amplify.configure(awsconfig);
 
@@ -76,13 +75,6 @@ export default function App() {
             auth ? <Home auth={auth} setAuth={handleSetAuth} /> : <Navigate to="/" />
           }
           />
-          {/* ✅ AIクイズページを追加 */}
-        <Route
-          path="/Aiquiz"
-          element={
-            auth ? <Aiquiz auth={auth} /> : <Navigate to="/" />
-          }
-        />
       </Routes>
     </Router>
   );

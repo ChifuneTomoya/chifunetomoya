@@ -103,26 +103,53 @@ async def study(data: StudyInput, email: str = Depends(verify_jwt_token)):
 
         input_text = f"""
 あなたはハイレベルなナレッジベース検索+問題生成AIです。
-
-`questions.pdf`の情報だけを使用してください。
-
-問題内容:「{data.question}」が空のときは、問題を5問生成してください。
-
+以下のカテゴリに応じて、**問題を5問生成してください**。
 ※同じ問題が連続しないよう注意してください。
-※各問題ごとに正しい「出典: questions.pdf Xページ」を記載してください（全体に1つではなく、個別に付けてください）
 
-出力形式（例）:
+問題内容:「{data.question}」が空のときは、下記に記載してある、使用するファイルに沿って生成してください。
+
+使用するファイル:
+-カテゴリ「{data.category}」が「問題集」の場合は `questions.pdf` だけを使用してください。
+-カテゴリ「{data.category}」が「基本情報」の場合は、`2024r06_fe_kamoku_a_qs.pdf`と `2024r06_fe_kamoku_a_ans.pdf` から問題を生成してください。
+基本情報カテゴリには、以下の2種類のPDFが存在します。
+
+- `2024r06_fe_kamoku_a_qs.pdf`：問題番号と問題文と選択肢（ア〜エ）が掲載されています。
+- `2024r06_fe_kamoku_a_ans.pdf`：問題番号と正解肢（ア〜エ）が掲載されています。
+
+この2つのPDFを照合し、該当する問題に対する「問題番号・問題文・選択肢・正解」を組み合わせて出力してください。照合できなかった場合は、検索から外してください。
+問題は問1から問20まであります。ただし、問題文や解答に図形が入っている問題は生成しないようにしてください。
+題文: X 及び Y はそれぞれ 0 又は 1 の値をとる変数である。X □Y を X と Y の論理演算としたとき，次の真理値表が得られた。X □Y の真理値表はどれか。この問題は生成しないでください。
+
+------------------------------------
+カテゴリが問題集の場合
+【問題集】
+`questions.pdf`は6ページ、50問あります。
+出力形式（例）：
 Q1: 〜？
-A1: 〜（解説）
-出典: questions.pdf 1ページ
+A1: 〜（解説） "出展ページ": "ファイル名とページ番号など"
 
+Q2: ...
 ...
+------------------------------------
+
+------------------------------------
+カテゴリが基本情報の場合
+【基本情報】
+`2024r06_fe_kamoku_a_qs.pdf`と`2024r06_fe_kamoku_a_ans.pdf`だけ使って下さい。
+出力形式（例）：
+問題番号:
+問題文:
+選択肢:
+解答:
+出展ページ": "ファイル名とページ番号など"
+-------------------------------------
 
 【特記事項】
 - 「{prev_source}」のページ以外から選び、内容が前回と明確に異なるようにしてください。
 
 カテゴリ:「{data.category}」
 問題内容:「{data.question}」
+
 """
 
         logger.info(f"カテゴリ: {data.category} | 実際の質問（検索用）: {data.question or '（AIによる自動生成）'}")
@@ -138,8 +165,8 @@ A1: 〜（解説）
                     "generationConfiguration": {
                         "inferenceConfig": {
                             "textInferenceConfig": {
-                                "temperature": 1.0,
-                                "topP": 0.95
+                                "temperature": 0.8,
+                                "topP": 0.7
                             }
                         }
                     }
@@ -154,26 +181,30 @@ A1: 〜（解説）
             raise HTTPException(500, "Claudeから有効な回答が得られませんでした。")
 
         # 出典抽出
-        source_info = ""
+        # ✅ citationsを取得し、出典情報を抽出
         citations = response.get("citations", [])
-        if citations:
-            try:
-                ref = citations[0]["retrievedReferences"][0]
-                page = int(ref.get("metadata", {}).get("x-amz-bedrock-kb-document-page-number", 0))
-                uri = ref.get("location", {}).get("s3Location", {}).get("uri", "")
-                filename = uri.split("/")[-1] if uri else "資料"
-                source_info = f"{filename} {page}ページ"
-                intermediate_answer += f"\n\n（出典: {source_info}）"
-                last_sources[email] = source_info
-            except Exception as e:
-                logger.warning(f"出典情報の解析に失敗しました: {e}")
+        source_infos = []
+        for citation in citations:
+            for ref in citation.get("retrievedReferences", []):
+                try:
+                    page = int(ref.get("metadata", {}).get("x-amz-bedrock-kb-document-page-number", 0))
+                    uri = ref.get("location", {}).get("s3Location", {}).get("uri", "")
+                    filename = uri.split("/")[-1] if uri else "questions.pdf"
+                    source_infos.append(f"{filename} {page}ページ")
+                except Exception as e:
+                    logger.warning(f"出典情報の解析に失敗しました: {e}")
+
+        if source_infos:
+            # AI回答のテキスト末尾に正確な出典を追記
+            intermediate_answer += "\n\n（出典: " + " / ".join(source_infos) + "）"
+
 
         # 🔧 Structured Outputでクイズ生成
         openai_response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "あなたは教育アプリのAI講師です。"},
-                {"role": "user", "content": f"以下の教材から1問だけクイズを生成してください。\n\n{intermediate_answer}"}
+                {"role": "user", "content": f"以下の教材から1問だけ選んで、クイズを生成してください。\n\n{intermediate_answer}"}
             ],
             functions=[
                 {
@@ -191,9 +222,9 @@ A1: 〜（解説）
                             },
                             "正解": {"type": "string"},
                             "解説": {"type": "string"},
-                            "出展ページ": {"type": "string"},
+                            "出典ページ": {"type": "string"},
                         },
-                        "required": ["問題文", "選択肢", "正解", "解説", "出展ページ"]
+                        "required": ["問題文", "選択肢", "正解", "解説", "出典ページ"]
                     }
                 }
             ],
@@ -222,33 +253,3 @@ A1: 〜（解説）
     except Exception as e:
         logger.exception("問題生成中に例外が発生しました")
         raise HTTPException(500, "AIからのクイズ生成でエラーが発生しました。")
-                            
-@app.post("/generate_quiz")
-async def generate_quiz(data: StudyInput, email: str = Depends(verify_jwt_token)):
-    prompt = f"""
-以下の形式で1問の4択クイズをJSON形式で出力してください。
-
-{{
-  "問題文": "...",
-  "選択肢": ["A", "B", "C", "D"],
-  "正解": "",
-  "解説": "..."
-}}
-
-カテゴリ: {data.category}
-質問: {data.question}
-"""
-    try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-        )
-        quiz_text = response.choices[0].message.content.strip()
-        quiz_data = json.loads(quiz_text)
-        return {"quiz": quiz_data}
-
-    except json.JSONDecodeError as e:
-        raise HTTPException(500, f"JSON解析に失敗しました: {e}\n内容: {quiz_text}")
-    except Exception as e:
-        raise HTTPException(500, f"クイズ生成中にエラーが発生しました: {e}")
