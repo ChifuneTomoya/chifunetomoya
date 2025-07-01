@@ -5,33 +5,45 @@ export default function Home({ auth, setAuth }) {
   const [question, setQuestion] = useState('');
   const [category, setCategory] = useState('');
   const [quiz, setQuiz] = useState(null);
+  const [quizHistory, setQuizHistory] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
   const [selectedChoice, setSelectedChoice] = useState(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewList, setReviewList] = useState([]);
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [reviewDone, setReviewDone] = useState(false);
 
   const navigate = useNavigate();
   const categories = ['問題集', '基本情報', '応用情報', 'その他'];
 
-  const handleStudy = async () => {
+  const addQuizToHistory = (newQuiz) => {
+    setQuizHistory((prev) => {
+      const updated = [...prev.slice(0, currentIndex + 1), newQuiz];
+      return updated;
+    });
+    setCurrentIndex((prev) => prev + 1);
+    setQuiz(newQuiz);
+    setSelectedChoice(null);
+    setShowAnswer(false);
+  };
+
+  const fetchNewQuiz = async () => {
     if (!category) {
       setError('カテゴリーを選択してください');
       return;
     }
-
     if (!auth?.idToken) {
       setError('ログインが必要です。');
       return;
     }
 
-    setError('');
     setLoading(true);
-    setQuiz(null);
-    setSelectedChoice(null);
-    setShowAnswer(false);
-
+    setError('');
     try {
-      const res = await fetch('http://localhost:8000/study', {
+      const res = await fetch('http://localhost:8000/generate_quiz', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -42,19 +54,100 @@ export default function Home({ auth, setAuth }) {
           question: question.trim() || '（AIによる自動生成）',
         }),
       });
-
       const data = await res.json();
-
       if (res.ok) {
-        setQuiz(data.quiz);
+        addQuizToHistory(data.quiz);
       } else {
         setError(data.detail || 'エラーが発生しました');
       }
-    } catch (e) {
+    } catch {
       setError('通信エラーが発生しました');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStudy = async () => {
+    setReviewMode(false);
+    setReviewList([]);
+    setReviewIndex(0);
+    setReviewDone(false);
+    await fetchNewQuiz();
+  };
+
+  const handleNext = async () => {
+    if (reviewMode) {
+      if (reviewIndex + 1 < reviewList.length) {
+        setReviewIndex((prev) => prev + 1);
+        setQuiz(reviewList[reviewIndex + 1]);
+        setSelectedChoice(null);
+        setShowAnswer(false);
+      } else {
+        if (!showAnswer) return; // 正解表示前は止める
+        setReviewMode(false);
+        setReviewDone(true);
+        setReviewList([]);
+        setReviewIndex(0);
+      }
+    } else {
+      if (currentIndex < quizHistory.length - 1) {
+        const nextQuiz = quizHistory[currentIndex + 1];
+        setCurrentIndex((prev) => prev + 1);
+        setQuiz(nextQuiz);
+        setSelectedChoice(null);
+        setShowAnswer(false);
+      } else {
+        await fetchNewQuiz();
+      }
+    }
+  };
+
+  const handlePrev = () => {
+    if (!reviewMode && currentIndex > 0) {
+      const prevQuiz = quizHistory[currentIndex - 1];
+      setCurrentIndex((prev) => prev - 1);
+      setQuiz(prevQuiz);
+      setSelectedChoice(null);
+      setShowAnswer(false);
+    }
+  };
+
+  const handleChoiceSelect = (choice) => {
+    setSelectedChoice(choice);
+    setShowAnswer(true);
+
+    const isCorrect = (() => {
+      const letterIndex = ['A', 'B', 'C', 'D'].indexOf(quiz.正解);
+      const correctChoice = quiz.選択肢[letterIndex];
+      return choice === correctChoice;
+    })();
+
+    if (!isCorrect && !reviewMode) {
+      setReviewList((prev) => [...prev, quiz]);
+    }
+
+    if (isCorrect && reviewMode) {
+      const updatedList = [...reviewList];
+      updatedList.splice(reviewIndex, 1);
+      setReviewList(updatedList);
+
+      if (updatedList.length === 0) {
+        setReviewDone(true);
+      }
+    }
+  };
+
+  const startReview = () => {
+    if (reviewList.length === 0) {
+      alert('復習対象の問題がありません。');
+      return;
+    }
+    setReviewMode(true);
+    setReviewIndex(0);
+    setQuiz(reviewList[0]);
+    setSelectedChoice(null);
+    setShowAnswer(false);
+    setReviewDone(false);
   };
 
   const handleLogout = () => {
@@ -63,9 +156,13 @@ export default function Home({ auth, setAuth }) {
     navigate('/');
   };
 
-  const handleChoiceSelect = (choice) => {
-    setSelectedChoice(choice);
-    setShowAnswer(true);
+  const renderReviewStatus = () => {
+    if (reviewMode) {
+      return <p style={{ color: '#17a2b8' }}>復習モード：残り {reviewList.length - reviewIndex} 問</p>;
+    } else if (reviewDone) {
+      return <p style={{ color: 'green' }}>復習終了！通常モードに戻りました</p>;
+    }
+    return null;
   };
 
   return (
@@ -96,17 +193,7 @@ export default function Home({ auth, setAuth }) {
         />
       </div>
 
-      {error && (
-        <div style={{ color: 'red' }}>
-          {(() => {
-            if (typeof error === 'string') return error;
-            if (Array.isArray(error))
-              return error.map((e, i) => <p key={i}>{e?.msg || JSON.stringify(e)}</p>);
-            if (typeof error === 'object') return <p>{error?.msg || JSON.stringify(error)}</p>;
-            return '不明なエラーが発生しました';
-          })()}
-        </div>
-      )}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
 
       <button
         onClick={handleStudy}
@@ -116,28 +203,26 @@ export default function Home({ auth, setAuth }) {
           backgroundColor: loading ? '#6c757d' : '#007bff',
         }}
       >
-        {loading ? 'AIが問題を作成中...' : '問題を作成'}
+        {loading ? '作成中...' : '問題を作成'}
       </button>
+
+      {!reviewMode && reviewList.length > 0 && (
+        <button style={styles.reviewButton} onClick={startReview}>
+          復習モードへ（{reviewList.length}問）
+        </button>
+      )}
+
+      {renderReviewStatus()}
 
       {quiz && (
         <div style={styles.quizBox}>
-          <h3>
-            {quiz.問題文 === '（AIによる自動生成）'
-              ? 'AIがランダムに出題しました'
-              : quiz.問題文}
-          </h3>
+          <h3>{quiz.問題文}</h3>
           <p><strong>カテゴリ:</strong> {category}</p>
 
           <ul style={styles.choiceList}>
             {quiz.選択肢.map((choice, index) => {
               const letter = ['A', 'B', 'C', 'D'][index];
-              const kana = ['ア', 'イ', 'ウ', 'エ'][index];
-              const isCorrect =
-                quiz.正解 === letter ||
-                quiz.正解 === kana ||
-                choice.startsWith(`${quiz.正解}.`) ||
-                choice.startsWith(`${quiz.正解} `);
-
+              const isCorrect = quiz.正解 === letter;
               const isSelected = selectedChoice === choice;
 
               let backgroundColor = '#fff';
@@ -179,9 +264,7 @@ export default function Home({ auth, setAuth }) {
                     }}
                   >
                     {letter}. {choice}
-                    {icon && (
-                      <span style={{ float: 'right', fontWeight: 'bold' }}>{icon}</span>
-                    )}
+                    {icon && <span style={{ float: 'right', fontWeight: 'bold' }}>{icon}</span>}
                   </button>
                 </li>
               );
@@ -191,9 +274,7 @@ export default function Home({ auth, setAuth }) {
           {showAnswer && (
             <div style={styles.explanationBox}>
               <strong>正解：</strong> {quiz.正解}. {
-                quiz.選択肢.find((c, idx) =>
-                  c.startsWith(`${quiz.正解}.`) || c.startsWith(`${quiz.正解} `)
-                ) || quiz.選択肢[['A','B','C','D'].indexOf(quiz.正解)] || '不明'
+                quiz.選択肢[['A','B','C','D'].indexOf(quiz.正解)] || '不明'
               }
               <br />
               <strong>解説：</strong> {quiz.解説}
@@ -208,7 +289,40 @@ export default function Home({ auth, setAuth }) {
         </div>
       )}
 
-      <div style={{ marginTop: 30 }} />
+      {quiz && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
+          <button
+            onClick={handlePrev}
+            disabled={reviewMode || currentIndex <= 0}
+            style={{
+              ...styles.button,
+              backgroundColor: reviewMode || currentIndex <= 0 ? '#6c757d' : '#007bff',
+              width: '48%',
+            }}
+          >
+            前の問題へ
+          </button>
+
+          <button
+            onClick={handleNext}
+            disabled={loading || (reviewMode && !showAnswer)}
+            style={{
+              ...styles.button,
+              backgroundColor: loading || (reviewMode && !showAnswer) ? '#6c757d' : '#28a745',
+              width: '48%',
+            }}
+          >
+            {reviewMode
+              ? reviewIndex + 1 >= reviewList.length
+                ? '復習完了'
+                : '次の復習へ'
+              : loading
+                ? '読み込み中...'
+                : '次の問題へ'}
+          </button>
+        </div>
+      )}
+
       <button style={styles.logoutButton} onClick={handleLogout}>
         ログアウト
       </button>
@@ -252,7 +366,16 @@ const styles = {
     borderRadius: 6,
     cursor: 'pointer',
     marginTop: 10,
-    width: '100%',
+  },
+  reviewButton: {
+    marginTop: 10,
+    padding: '10px 20px',
+    backgroundColor: '#17a2b8',
+    color: '#fff',
+    fontSize: 16,
+    border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer',
   },
   choiceList: {
     listStyle: 'none',
@@ -270,7 +393,7 @@ const styles = {
   explanationBox: {
     marginTop: 20,
     padding: 15,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f1f1f1',
     borderRadius: 6,
     border: '1px solid #ddd',
     color: '#333',
@@ -282,12 +405,6 @@ const styles = {
     borderRadius: 8,
     border: '1px solid #ddd',
   },
-  buttonGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 10,
-    marginTop: 20,
-  },
   logoutButton: {
     backgroundColor: '#dc3545',
     color: '#fff',
@@ -296,7 +413,7 @@ const styles = {
     fontSize: 16,
     borderRadius: 6,
     cursor: 'pointer',
-    width: '100%',
     marginTop: 30,
+    width: '100%',
   },
 };

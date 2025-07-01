@@ -253,3 +253,78 @@ Q2: ...
     except Exception as e:
         logger.exception("問題生成中に例外が発生しました")
         raise HTTPException(500, "AIからのクイズ生成でエラーが発生しました。")
+    
+from fastapi import BackgroundTasks
+
+with open("quiz_data.json", "r", encoding="utf-8") as f:
+    quiz_data = json.load(f)
+
+# フロントから受け取る形式に合わせたリクエストモデル
+class QuizRequest(BaseModel):
+    category: str
+    question: str
+
+last_quiz_text = {}
+
+# メモリ上でユーザー別に直前の問題文を記録（シンプルな辞書）
+last_question_per_user = {}
+
+@app.post("/generate_quiz")
+def generate_quiz(request: QuizRequest, email: str = Depends(verify_jwt_token)):
+    input_q = request.question.strip()
+    user = email
+
+    logging.info(f"Received: category={request.category}, question={input_q}")
+
+    # 全問題から「問題文」と正解をフォーマットする関数
+    def format_quiz(quiz: dict):
+        choices = quiz["選択肢"]
+        correct_text = quiz["正解"].strip()
+        if correct_text in ["A", "B", "C", "D"]:
+            return quiz
+        if correct_text in choices:
+            index = choices.index(correct_text)
+            quiz["正解"] = ["A", "B", "C", "D"][index]
+            return quiz
+        for i, choice in enumerate(choices):
+            if choice.startswith(correct_text):
+                quiz["正解"] = ["A", "B", "C", "D"][i]
+                return quiz
+        logging.warning(f"正解が選択肢に見つかりません: {correct_text}")
+        quiz["正解"] = "A"
+        return quiz
+
+    # 同じ問題が連続しないようにするロジック
+    # まず、完全一致問題を探す
+    matched_quizzes = [q for q in quiz_data if input_q in q["問題文"]]
+    filtered_quizzes = []
+    for quiz in matched_quizzes:
+        formatted_quiz = format_quiz(quiz.copy())
+        last_question = last_question_per_user.get(user)
+        if last_question != formatted_quiz["問題文"]:
+            filtered_quizzes.append(formatted_quiz)
+    # filtered_quizzesに空ならmatched_quizzesに戻す（重複避けできない場合）
+    if not filtered_quizzes:
+        filtered_quizzes = [format_quiz(q.copy()) for q in matched_quizzes]
+
+    if filtered_quizzes:
+        selected_quiz = filtered_quizzes[0]
+        last_question_per_user[user] = selected_quiz["問題文"]
+        return {"quiz": selected_quiz}
+
+    # 簡易類似度でベスト問題を選ぶ処理
+    def simple_similarity(q1, q2):
+        return sum(word in q2 for word in q1.split())
+
+    candidates = sorted(quiz_data, key=lambda q: simple_similarity(input_q, q["問題文"] + q["解説"]), reverse=True)
+
+    for candidate in candidates:
+        formatted = format_quiz(candidate.copy())
+        if last_question_per_user.get(user) != formatted["問題文"]:
+            last_question_per_user[user] = formatted["問題文"]
+            return {"quiz": formatted}
+
+    # 全て重複する場合はそのまま返す
+    quiz = format_quiz(candidates[0].copy())
+    last_question_per_user[user] = quiz["問題文"]
+    return {"quiz": quiz}
